@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#2b1d2e">
+<title>Nicko's Adventures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="room-wrap">
+      <div id="room-bg"></div>
+      <div id="objects"></div>
+    </div>
+    <div id="dim"></div>
+    <div id="fx"></div>
+    <div id="nicko-wrap">
+      <div id="emote" class="hidden"></div>
+      <div id="nicko"></div>
+    </div>
+    <div id="hud">
+      <div id="points-pill" title="Paw Points">🐾 <span id="points">0</span></div>
+      <div id="hud-buttons">
+        <button id="btn-collection" aria-label="My collection">🎒<span id="coll-count">0/8</span></button>
+        <button id="btn-achievements" aria-label="Achievements">🏅</button>
+        <button id="btn-mute" aria-label="Sound on or off">🔊</button>
+      </div>
+    </div>
+    <div id="toast-wrap"></div>
+    <div id="modal-wrap" class="hidden"></div>
+    <div id="selftest-results" class="hidden"></div>
+  </div>
+</div>
+<script src="js/audio.js"></script>
+<script src="js/state.js"></script>
+<script src="js/nicko.js"></script>
+<script src="js/rooms_a.js"></script>
+<script src="js/rooms_b.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
