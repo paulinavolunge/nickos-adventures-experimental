@@ -53,7 +53,7 @@ G.points = function (n, reason) {
     G.S.points += n; Store.save(); updateHUD();
     var pill = $('#points-pill');
     pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
-    G.floatText(Nicko.pos(), 26, '+' + n);
+    if (window.FX) FX.pips(Nicko.pos(), 30, Math.max(2, Math.min(5, Math.round(n / 4))));
     G.sfx('chime');
     if (G.S.points >= 150) G.achieve('paw-champion');
   }
@@ -70,11 +70,8 @@ G.achieve = function (id) {
   var def = findAch(id); if (!def) return;
   G.S.achievements.push(id); Store.save();
   G.sfx('fanfare');
-  var pop = document.createElement('div');
-  pop.id = 'achieve-pop';
-  pop.innerHTML = '<div class="ai">' + def.icon + '</div><div class="an">' + def.name + '</div><div class="ad">' + def.desc + '</div>';
-  stage.appendChild(pop);
-  setTimeout(function () { pop.remove(); }, 2700);
+  if (window.FX) FX.sticker(def.icon, def.name);
+  Nicko.react('proud', 1600);
 };
 
 /* Quiet discovery: sparkles and a small chime, no banner. Big celebrations
@@ -92,16 +89,19 @@ G.collect = function (id) {
   var def = null;
   for (var i = 0; i < COLLECTIBLES.length; i++) if (COLLECTIBLES[i].id === id) def = COLLECTIBLES[i];
   G.S.collectibles.push(id); Store.save(); updateHUD();
-  G.sfx('magic');
-  G.sparkleAt(Nicko.pos(), 40, 14);
   G.points(10);
-  /* A Golden Paw Print is a big moment: a real celebration card. */
+  /* The big moment: golden glow -> print reveal -> sparkle burst -> Nicko celebrates. */
   var name = def ? def.name : 'Golden Paw Print';
+  var nx = Nicko.pos();
+  if (window.FX) FX.goldenPaw(nx, 42, name, G.S.collectibles.length + ' of 10 found');
+  Nicko.setFace('surprised');
+  setTimeout(function () { Nicko.react('love', 1800); }, 500);
   setTimeout(function () {
-    openModal('<h2>🐾</h2><p class="sub">A Golden Paw Print!</p><h2>' + name + '</h2>' +
-      '<p class="sub">' + G.S.collectibles.length + ' of 10 found</p>' +
-      '<button class="modal-close">Keep playing!</button>');
-  }, 900);
+    openModal('<div class="gold-card-inner"><div class="big-paw">🐾</div>' +
+      '<p class="sub">A Golden Paw Print!</p><h2>' + name + '</h2>' +
+      '<p class="sub">' + G.S.collectibles.length + ' of 10 found</p></div>' +
+      '<button class="modal-close">Keep playing!</button>', true);
+  }, 2100);
 };
 
 /* ---------- fx ---------- */
@@ -418,6 +418,7 @@ G.soapTap = async function () {
   G.setFlag('soaped', true);
   G.sfx('scrub');
   for (var i = 0; i < 6; i++) G.sparkleAt(Nicko.pos() + (Math.random() * 10 - 5), 55 + Math.random() * 10, 2);
+  if (window.FX) FX.bubbles(Nicko.pos(), 58, 10);
   await Nicko.action('shakeoff');
   await Nicko.react('wow');
   Needs.change('clean', 10);
@@ -434,8 +435,9 @@ G.towelTap = async function () {
   }
   G.sfx('pop');
   await Nicko.action('wiggle');
+  if (window.FX) FX.bubbles(Nicko.pos(), 58, 6);
   G.sfx('purr');
-  await Nicko.react('happy');
+  await Nicko.react('veryHappy', 1300);
   Needs.change('clean', 55);
   Nicko.mood('dirty', false);
   G.setFlag('soaped', false);
@@ -547,11 +549,20 @@ G.tossPaper = async function () {
 function doorSvg(dir, neighbor) {
   var icon = ROOMS[neighbor].icon;
   var arrow = dir === 'right' ? '➡️' : '⬅️';
-  return '<svg viewBox="0 0 100 160"><rect x="14" y="10" width="72" height="140" rx="30" fill="#8A5A3B"/>' +
-    '<rect x="24" y="22" width="52" height="118" rx="20" fill="#5A3A22"/>' +
-    '<circle cx="66" cy="88" r="6" fill="#FFD65A"/></svg>' +
-    '<div class="door-arrow" style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:30px;">' + arrow + '</div>' +
-    '<div style="position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);font-size:24px;background:#fff;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border:3px solid #FFD65A;">' + icon + '</div>';
+  return '<svg viewBox="0 0 100 160">' +
+    '<defs><linearGradient id="doorG" x1="0" y1="0" x2="1" y2="0">' +
+    '<stop offset="0" stop-color="#B07B4A"/><stop offset="0.5" stop-color="#C9975F"/><stop offset="1" stop-color="#A96F3E"/>' +
+    '</linearGradient></defs>' +
+    '<ellipse cx="50" cy="152" rx="40" ry="7" fill="rgba(90,55,25,0.25)"/>' +
+    '<rect x="12" y="8" width="76" height="144" rx="34" fill="url(#doorG)" stroke="#7C4F22" stroke-width="3"/>' +
+    '<rect x="24" y="24" width="52" height="46" rx="18" fill="#8A5A30" opacity="0.55"/>' +
+    '<rect x="24" y="80" width="52" height="58" rx="14" fill="#8A5A30" opacity="0.55"/>' +
+    '<rect x="28" y="28" width="44" height="38" rx="14" fill="none" stroke="#E8C98F" stroke-width="2.5" opacity="0.7"/>' +
+    '<rect x="28" y="84" width="44" height="50" rx="10" fill="none" stroke="#E8C98F" stroke-width="2.5" opacity="0.7"/>' +
+    '<circle cx="68" cy="104" r="7" fill="#FFD166" stroke="#B57E1B" stroke-width="2.5"/>' +
+    '<circle cx="68" cy="104" r="2.5" fill="#FFF3D0"/></svg>' +
+    '<div class="door-arrow" style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:30px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));">' + arrow + '</div>' +
+    '<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);font-size:24px;background:#FFFDF7;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:3px solid #FFD166;box-shadow:0 4px 10px rgba(60,40,20,.25);">' + icon + '</div>';
 }
 
 function addDoors() {
@@ -632,9 +643,9 @@ document.addEventListener('keydown', function (e) {
 });
 
 /* ---------- modals ---------- */
-function openModal(html) {
+function openModal(html, gold) {
   var w = $('#modal-wrap');
-  w.innerHTML = '<div class="modal-card">' + html + '</div>';
+  w.innerHTML = '<div class="modal-card' + (gold ? ' gold-card' : '') + '">' + html + '</div>';
   w.classList.remove('hidden');
   var btn = w.querySelector('.modal-close');
   if (btn) btn.addEventListener('click', closeModal);
@@ -739,6 +750,8 @@ async function opening() {
   } catch (e) {}
   await G.wait(1200);
   await Nicko.react('wow');
+  G.sparkleAt(Nicko.pos(), 55, 6);
+  G.sfx('happyMeow');
   G.setGlow('underbed', true);
   G.toast('Something sparkles under the bed!', '👆');
   await G.wait(9000);
@@ -831,6 +844,7 @@ function boot() {
   G.S = Store.data;
   AudioSys.setMuted(!!G.S.muted);
   Nicko.init();
+  if (window.FX) FX.init();
   renderRoom('bedroom', null);
   Nicko.setX(50);
   /* restore persistent dirty state from the cleanliness need */

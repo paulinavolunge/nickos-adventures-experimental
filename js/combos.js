@@ -11,6 +11,15 @@ async function feedFood(G, foodId, inBowl) {
   if (t.hunger > 0) {
     G.sparkleAt(Nicko.pos(), 62, 8);
     G.points(5);
+    if (t.note === 'favorite') {
+      /* favorite food: full-body happy wiggle plus hearts */
+      if (window.FX) FX.hearts(Nicko.pos(), 58, 7);
+      await Nicko.action('wiggle');
+      await Nicko.react('veryHappy', 1400);
+      G.sfx('purr');
+    } else {
+      await Nicko.react('yum', 1100);
+    }
     if (t.note === 'favorite' && G.once('favFood')) {
       G.achieve('combo-cook');
       G.points(15);
@@ -31,8 +40,11 @@ async function feedFood(G, foodId, inBowl) {
 
 function playChase(G) {
   return (async function () {
+    await Nicko.react('excited', 900);
+    Nicko.think('⚽');
     await Nicko.action('pounce');
     G.sfx('boing');
+    await Nicko.action('wiggle');
     await Nicko.react('happy');
     Needs.play(14);
     if (G.once('chasePlay')) G.points(5);
@@ -46,14 +58,19 @@ function playChase(G) {
   Combos.register(f, 'bowl', function (G) { return feedFood(G, f, true); });
 });
 Combos.register('lemon', '__nicko', async function (G) {
+  /* sour lemon comedy: sniff first, then the big sour face */
+  await Nicko.react('suspicious', 1100);
   await Nicko.taste('lemon');
   await Nicko.action('shakeoff');
   G.sfx('giggle');
+  await Nicko.react('silly', 1300);
+  Nicko.think('🍋');
   if (G.once('lemonFun')) G.points(5);
   return true;
 });
 Combos.register('lemon', 'bowl', async function (G) {
   await Nicko.walkTo(66);
+  await Nicko.react('suspicious', 1100);
   await Nicko.react('confused');
   Nicko.think('🍋');
   G.sfx('giggle');
@@ -61,8 +78,12 @@ Combos.register('lemon', 'bowl', async function (G) {
 });
 ['broccoli'].forEach(function (f) {
   Combos.register(f, '__nicko', async function (G) {
+    /* suspicious broccoli tasting: inspect, tiny nibble, verdict */
+    await Nicko.react('suspicious', 1200);
     await Nicko.taste('broccoli');
     G.sfx('giggle');
+    await Nicko.react('silly', 1100);
+    Nicko.think('🥦');
     if (G.once('broccoliFun')) G.points(5);
     return true;
   });
@@ -79,9 +100,11 @@ Combos.register('ball', '__nicko', playChase);
 Combos.register('yball', '__nicko', playChase);
 Combos.register('toyMouse', '__nicko', async function (G) {
   G.sfx('squeak');
+  Nicko.think('🐭');
   await Nicko.react('hunt', 1400);
   await Nicko.action('pounce');
-  await Nicko.react('happy');
+  G.sparkleAt(Nicko.pos(), 60, 6);
+  await Nicko.react('proud', 1300);
   Needs.play(14);
   if (G.once('huntPlay')) G.points(10);
   return true;
@@ -108,6 +131,9 @@ Combos.register('blanket', 'bed', async function (G) {
   G.sfx('pop'); G.sparkleAt(78, 60, 8);
   await Nicko.walkTo(74);
   await Nicko.react('sleepy', 1600);
+  await Nicko.action('curl');
+  if (window.FX) FX.zs(74, 52, 3);
+  G.sfx('yawn');
   Needs.rest(20);
   if (G.once('cozyBed')) G.points(10);
   return 'consume';
@@ -115,6 +141,8 @@ Combos.register('blanket', 'bed', async function (G) {
 Combos.register('book', 'bed', async function (G) {
   G.sfx('magic'); G.sparkleAt(78, 58, 8);
   await Nicko.walkTo(74);
+  await Nicko.react('curious', 1200);
+  Nicko.think('📖');
   await Nicko.react('love');
   Needs.change('happy', 10);
   if (G.once('storyTime')) G.points(10);
@@ -131,7 +159,8 @@ Combos.register('hat', '__nicko', async function (G) {
 Combos.register('teddy', 'underbed', async function (G) {
   G.setFlag('teddyStashed', true);
   G.sfx('giggle');
-  await Nicko.react('happy', 1100);
+  await Nicko.react('playful', 1100);
+  await Nicko.action('crouch');
   Nicko.think('🐭');
   return 'consume';
 });
@@ -151,7 +180,9 @@ Combos.register('can', '__nicko', async function (G) {
   /* mischief: splashing Nicko is funny but he gets damp */
   G.sfx('splash'); G.splashAt(Nicko.pos(), 66);
   await Nicko.react('surprised', 1200);
+  await Nicko.action('shakeoff');
   G.sfx('giggle');
+  await Nicko.react('silly', 1100);
   Needs.change('clean', -8);
   return true;
 });
