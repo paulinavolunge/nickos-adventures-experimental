@@ -147,6 +147,22 @@ window.AudioSys = (function () {
     rain: function () { noise({ dur: 1.6, vol: 0.1, filter: 4000, type: 'highpass' }); },
     magic: function () {
       [880, 1108, 1318, 1760].forEach(function (f, i) { tone({ f: f, dur: 0.22, vol: 0.09, delay: i * 0.08 }); });
+    },
+    pickup: function () { tone({ f: 500, f2: 900, dur: 0.1, type: 'triangle', vol: 0.12 }); },
+    munch: function () {
+      for (var i = 0; i < 3; i++) noise({ dur: 0.12, vol: 0.14, filter: 700, delay: i * 0.16 });
+    },
+    tummy: function () {
+      tone({ f: 160, f2: 90, dur: 0.25, vol: 0.12 });
+      tone({ f: 130, f2: 80, dur: 0.25, vol: 0.1, delay: 0.3 });
+    },
+    yawn: function () {
+      tone({ f: 420, f2: 700, dur: 0.45, type: 'sawtooth', vol: 0.07 });
+      tone({ f: 700, f2: 380, dur: 0.4, type: 'sawtooth', vol: 0.06, delay: 0.45 });
+    },
+    sneeze: function () {
+      noise({ dur: 0.14, vol: 0.2, filter: 3000, type: 'highpass' });
+      noise({ dur: 0.22, vol: 0.16, filter: 2400, type: 'highpass', delay: 0.16 });
     }
   };
 
@@ -156,6 +172,7 @@ window.AudioSys = (function () {
       if (muted) return;
       try { ensure(); if (SFX[name]) SFX[name](arg); } catch (e) { /* audio unavailable */ }
     },
+    has: function (name) { return !!SFX[name]; },
     setMuted: function (m) { muted = !!m; },
     isMuted: function () { return muted; }
   };

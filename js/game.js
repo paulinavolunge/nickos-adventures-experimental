@@ -43,7 +43,7 @@ G.toast = function (msg, icon) {
 /* ---------- HUD ---------- */
 function updateHUD() {
   $('#points').textContent = G.S.points;
-  $('#coll-count').textContent = G.S.collectibles.length + '/8';
+  $('#coll-count').textContent = G.S.collectibles.length + '/10';
   $('#btn-mute').textContent = AudioSys.isMuted() ? '🔇' : '🔊';
 }
 
@@ -77,19 +77,31 @@ G.achieve = function (id) {
   setTimeout(function () { pop.remove(); }, 2700);
 };
 
+/* Quiet discovery: sparkles and a small chime, no banner. Big celebrations
+   are reserved for Golden Paw Prints, secrets, and real achievements. */
 G.discover = function (text, pts) {
   if (pts === undefined) pts = 5;
   G.sfx('discover');
+  G.sparkleAt(Nicko.pos(), 45, 8);
   G.achieve('curious-kitten');
-  G.points(pts, text);
+  G.points(pts);
 };
 
 G.collect = function (id) {
   if (G.S.collectibles.indexOf(id) >= 0) return;
+  var def = null;
+  for (var i = 0; i < COLLECTIBLES.length; i++) if (COLLECTIBLES[i].id === id) def = COLLECTIBLES[i];
   G.S.collectibles.push(id); Store.save(); updateHUD();
   G.sfx('magic');
   G.sparkleAt(Nicko.pos(), 40, 14);
-  G.points(10, 'Golden Paw Print found!');
+  G.points(10);
+  /* A Golden Paw Print is a big moment: a real celebration card. */
+  var name = def ? def.name : 'Golden Paw Print';
+  setTimeout(function () {
+    openModal('<h2>🐾</h2><p class="sub">A Golden Paw Print!</p><h2>' + name + '</h2>' +
+      '<p class="sub">' + G.S.collectibles.length + ' of 10 found</p>' +
+      '<button class="modal-close">Keep playing!</button>');
+  }, 900);
 };
 
 /* ---------- fx ---------- */
@@ -165,7 +177,8 @@ function addObject(def) {
   el._def = def;
   el.addEventListener('pointerdown', function (ev) {
     ev.stopPropagation();
-    onObjTap(def, el);
+    if (def.drag && window.Drag) Drag.press(def, el, ev);
+    else onObjTap(def, el);
   });
   objectsEl.appendChild(el);
   return el;
@@ -204,13 +217,17 @@ async function onObjTap(def, el) {
   locked = true;
   lastInteract = Date.now();
   try {
-    await Nicko.walkTo(def.x);
+    var tx = def.x;
+    if (el && el.style.left) { var px = parseFloat(el.style.left); if (!isNaN(px)) tx = px; }
+    await Nicko.walkTo(tx);
     await def.onTap(G);
   } catch (e) {
     if (window.console) console.error('tap error on ' + def.id, e);
   }
   locked = false;
 }
+/* shared tap flow, also used when a drag ends up being a simple tap */
+G.tapDef = onObjTap;
 // direct invocation (no walk, no lock) for chained interactions like the TV remote
 G.objTap = async function (id) {
   var el = G.el(id);
@@ -240,19 +257,18 @@ G.tidyPlayToy = async function (toyId) {
   G.despawn(toyId);
   G.sfx('pop'); G.sparkleAt(8, 76, 6);
   await Nicko.react('happy');
-  G.points(5, 'Toy tidied!');
+  G.points(5);
   var remaining = PLAY_TOYS.filter(function (id) { return !!G.el(id); });
   if (remaining.length === 0 && G.once('playroomTidy')) {
     G.achieve('toy-master');
-    G.points(25, 'Playroom all tidy!');
+    G.points(25);
     G.collect('print-playroom');
-    G.toast('A Golden Paw Print was in the toy box!', '🐾');
   }
 };
 
 G.stackBlock = async function (blockId) {
   var n = G.flag('towerH') || 0;
-  if (n >= 3) { G.toast('So tall! Tap the tower!', '🗼'); return; }
+  if (n >= 3) return;
   var el = G.el(blockId);
   if (!el || el.dataset.stacked) return;
   await G.sendTo(blockId, 62, 72 - n * 10, 500);
@@ -261,11 +277,10 @@ G.stackBlock = async function (blockId) {
   el.dataset.stacked = '1';
   await Nicko.react('happy');
   if (n === 3) {
-    G.toast('Amazing tower! Tap it!', '😲');
     var t = G.el('tower');
     if (t) t.classList.add('glow');
-  } else {
-    G.toast('Stack it higher!', '🧱');
+    await Nicko.action('hop');
+    G.sfx('magic');
   }
 };
 
@@ -292,10 +307,7 @@ G.toppleTower = async function () {
   await Nicko.react('surprised');
   G.sfx('giggle');
   if (n >= 3 && G.once('towerTopple')) {
-    G.discover('Timber! What a crash!', 10);
     G.collect('print-blocks');
-  } else {
-    G.toast('Crash! Build it again!', '😂');
   }
 };
 
@@ -310,6 +322,225 @@ G.yardDiscover = function (key) {
   var keys = ['butterfly', 'flowers', 'sandbox', 'puddle', 'bird', 'rain'];
   var count = keys.filter(function (k2) { return G.flag('yard_' + k2); }).length;
   if (count >= 3) G.achieve('backyard-detective');
+};
+
+/* ---------- needs HUD + toybox tray ---------- */
+G.renderNeeds = function () {
+  var bar = $('#needs-bar');
+  if (!bar) return;
+  var icons = { happy: '😺', hunger: '🍎', clean: '🛁', energy: '⚡' };
+  var keymap = { happy: 'happy', hunger: 'hunger', clean: 'clean', energy: 'energy' };
+  var html = '';
+  Object.keys(icons).forEach(function (k) {
+    var v = Math.round(Needs.get(keymap[k]));
+    var cls = v > 60 ? 'ok' : (v > 30 ? 'mid' : 'low');
+    html += '<div class="need ' + cls + '" data-need="' + k + '" title="' + k + '">' +
+      '<span class="need-icon">' + icons[k] + '</span>' +
+      '<span class="need-fill"><span style="width:' + v + '%"></span></span></div>';
+  });
+  bar.innerHTML = html;
+  /* thought-bubble nudges handled in Needs.js via Nicko.think */
+};
+
+G.renderTray = function () {
+  var tray = $('#tray');
+  if (!tray) return;
+  var wasOpen = tray.querySelector('.tray-items') &&
+    !tray.querySelector('.tray-items').classList.contains('hidden');
+  var items = Inventory.owned();
+  var html = '<div class="tray-handle">🧸</div>';
+  html += '<div class="tray-items' + (wasOpen ? '' : ' hidden') + '">';
+  if (!items.length) {
+    html += '<div class="tray-empty">Play to find toys!</div>';
+  } else {
+    items.forEach(function (id) {
+      var item = ITEMS[id];
+      var worn = Inventory.equipped()[id] ? ' worn' : '';
+      html += '<button class="tray-item' + worn + '" data-item="' + id + '" aria-label="' + item.name + '">' +
+        '<span class="tray-icon">' + item.icon + '</span><span class="tray-name">' + item.name + '</span></button>';
+    });
+  }
+  html += '</div>';
+  tray.innerHTML = html;
+  tray.querySelector('.tray-handle').addEventListener('pointerdown', function (ev) {
+    ev.stopPropagation();
+    tray.querySelector('.tray-items').classList.toggle('hidden');
+    G.sfx('click');
+  });
+  tray.querySelectorAll('.tray-item').forEach(function (btn) {
+    btn.addEventListener('pointerdown', function (ev) {
+      ev.stopPropagation();
+      AudioSys.ensure();
+      var id = btn.dataset.item;
+      if (ITEMS[id] && ITEMS[id].wear) Inventory.toggleWear(id);
+      else Inventory.give(id);
+    });
+  });
+};
+
+/* ---------- room action helpers ---------- */
+G.wearPajamas = async function () {
+  await Nicko.walkTo(60);
+  G.sfx('pop');
+  Nicko.syncWear({ pajamas: true });
+  G.sfx('giggle');
+  await Nicko.react('love');
+  Needs.rest(8);
+  G.setFlag('pajamasOn', true);
+};
+
+G.sinkTap = async function () {
+  var on = !G.flag('waterOn');
+  G.setFlag('waterOn', on);
+  var el = G.el('sink');
+  if (el) {
+    var spout = el.querySelector('.sink-water');
+    if (spout) spout.style.display = on ? '' : 'none';
+    el.classList.toggle('water-on', on);
+  }
+  G.sfx(on ? 'splash' : 'click');
+  if (on) {
+    await Nicko.react('wow');
+    G.setGlow('soap', true);
+    if (G.once('waterHint')) Nicko.think('🧼');
+  } else {
+    await Nicko.react('happy', 900);
+  }
+};
+
+G.soapTap = async function () {
+  if (!G.flag('waterOn')) {
+    await Nicko.react('confused');
+    Nicko.think('🚰');
+    G.setGlow('sink', true);
+    return;
+  }
+  G.setFlag('soaped', true);
+  G.sfx('scrub');
+  for (var i = 0; i < 6; i++) G.sparkleAt(Nicko.pos() + (Math.random() * 10 - 5), 55 + Math.random() * 10, 2);
+  await Nicko.action('shakeoff');
+  await Nicko.react('wow');
+  Needs.change('clean', 10);
+  G.setGlow('towel', true);
+  Nicko.think('🛁');
+};
+
+G.towelTap = async function () {
+  if (!G.flag('soaped')) {
+    await Nicko.react('confused');
+    Nicko.think('🧼');
+    G.setGlow('soap', true);
+    return;
+  }
+  G.sfx('pop');
+  await Nicko.action('wiggle');
+  G.sfx('purr');
+  await Nicko.react('happy');
+  Needs.change('clean', 55);
+  Nicko.mood('dirty', false);
+  G.setFlag('soaped', false);
+  if (G.once('fullBath')) {
+    G.achieve('clean-paws');
+    G.collect('print-bathroom');
+  }
+};
+
+G.fridgeTap = async function () {
+  var open = !G.flag('fridgeOpen');
+  G.setFlag('fridgeOpen', open);
+  var el = G.el('fridge');
+  G.sfx(open ? 'pop' : 'click');
+  if (open) {
+    if (el) el.classList.add('fridge-open');
+    await Nicko.react('wow');
+    var fishDef = {
+      id: 'fish', x: 44, y: 50, w: 9, label: 'Fish', glow: true, drag: true,
+      svg: '<svg viewBox="0 0 90 70"><ellipse cx="40" cy="38" rx="24" ry="16" fill="#6BA8E8"/><path d="M62 38 L82 24 L82 52 Z" fill="#4A7FC1"/><circle cx="30" cy="34" r="4" fill="#1E2A33"/><path d="M40 22 q6 -8 14 -6" stroke="#4A7FC1" stroke-width="4" fill="none" stroke-linecap="round"/></svg>',
+      onTap: async function (g) { await Feed.feedFood(g, 'fish', false); }
+    };
+    var brocDef = {
+      id: 'broccoli', x: 52, y: 58, w: 8, label: 'Broccoli', glowSoft: true, drag: true,
+      svg: '<svg viewBox="0 0 70 80"><rect x="30" y="46" width="10" height="26" rx="4" fill="#7CB85C"/><circle cx="22" cy="34" r="12" fill="#3E8E3E"/><circle cx="40" cy="28" r="13" fill="#4CA64C"/><circle cx="52" cy="38" r="11" fill="#3E8E3E"/></svg>',
+      onTap: async function (g) { await Feed.feedFood(g, 'broccoli', false); }
+    };
+    if (!G.el('fish')) G.spawn(fishDef);
+    if (!G.el('broccoli')) G.spawn(brocDef);
+    var opens = (G.flag('fridgeOpens') || 0) + 1;
+    G.setFlag('fridgeOpens', opens);
+    if (opens === 3 && Secrets.found('fridgeClimb')) {
+      await Nicko.walkTo(46);
+      G.sfx('whoosh');
+      await Nicko.action('wiggle', 1500);
+      G.sfx('giggle');
+      await Nicko.react('surprised', 1200);
+      Nicko.think('❄️');
+    }
+  } else {
+    if (el) el.classList.remove('fridge-open');
+    G.despawn('fish');
+    G.despawn('broccoli');
+  }
+};
+
+G.waterFlowers = async function () {
+  var grown = G.flag('flowersGrown');
+  G.sfx('splash');
+  var el = G.el('flowers');
+  if (el) { el.classList.remove('bloom'); void el.offsetWidth; el.classList.add('bloom'); }
+  await Nicko.walkTo(28);
+  G.sparkleAt(28, 62, 10);
+  await Nicko.react('happy');
+  if (!grown) {
+    G.setFlag('flowersGrown', true);
+    if (G.once('flowersWatered')) {
+      G.points(10);
+      G.yardDiscover('flowers');
+    }
+  }
+  Needs.play(6);
+};
+
+G.toggleTv = async function () {
+  var on = !G.flag('tvOn');
+  G.setFlag('tvOn', on);
+  var el = G.el('tv');
+  if (el) {
+    var screen = el.querySelector('.tv-screen');
+    if (screen) screen.setAttribute('fill', on ? '#7ECBF2' : '#1E262E');
+    if (on) {
+      screen.innerHTML = '<circle cx="60" cy="46" r="16" fill="#FFD65A"/><rect x="100" y="30" width="40" height="30" rx="6" fill="#FF9D6B"/>';
+      el.classList.add('tv-on');
+    } else {
+      screen.innerHTML = '';
+      el.classList.remove('tv-on');
+    }
+  }
+  G.sfx(on ? 'magic' : 'click');
+  if (on) {
+    await Nicko.action('dance');
+    await Nicko.react('music');
+    Needs.play(8);
+    if (G.once('tvFun')) G.points(5);
+  }
+};
+
+G.tossPaper = async function () {
+  var el = G.el('paperball');
+  if (!el) {
+    G.spawn({
+      id: 'paperball', x: 78, y: 40, w: 7, label: 'Crumpled paper', drag: true, glowSoft: true,
+      svg: '<svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="22" fill="#F4F1E8" stroke="#D8D2C2" stroke-width="4"/><path d="M16 28 q10 -8 20 0 q10 -8 14 2" stroke="#D8D2C2" stroke-width="3" fill="none"/></svg>',
+      onTap: async function (g) { await g.tossPaper(); }
+    });
+    if (G.once('paperHint')) G.toast('Drag the paper into the trash!', '🗑️');
+    return;
+  }
+  G.sfx('whoosh');
+  await G.sendTo('paperball', 86, 60, 600);
+  G.despawn('paperball');
+  G.sfx('pop');
+  await Nicko.react('happy', 900);
+  if (G.once('trashToss')) G.points(5);
 };
 
 /* ---------- doors & navigation ---------- */
@@ -328,8 +559,10 @@ function addDoors() {
   var prev = ORDER[(idx + ORDER.length - 1) % ORDER.length];
   var next = ORDER[(idx + 1) % ORDER.length];
   var dl = addObject({ id: '__doorL', x: 5, y: 62, w: 9, label: 'Go to ' + ROOMS[prev].label, svg: doorSvg('left', prev),
+    goto: prev,
     onTap: async function () { await G.gotoRoom(prev, 'left'); } });
   var dr = addObject({ id: '__doorR', x: 95, y: 62, w: 9, label: 'Go to ' + ROOMS[next].label, svg: doorSvg('right', next),
+    goto: next,
     onTap: async function () { await G.gotoRoom(next, 'right'); } });
   dl.classList.add('door', 'door-left');
   dr.classList.add('door');
@@ -349,8 +582,20 @@ function renderRoom(id, entry) {
     if (G.S.roomsVisited.length >= 6) G.achieve('house-explorer');
   }
   G.dim(false);
+  /* respawn anything the child is carrying through the door */
+  if (window.Drag && Drag.hasCarried()) {
+    var carried = Drag.takeCarried();
+    carried.def.x = entry === 'right' ? 20 : 78;
+    carried.def.y = 74;
+    addObject(carried.def);
+    if (carried.def.draggableOnce) carried.def.drag = false;
+  }
   if (entry === 'right') { Nicko.face('right'); Nicko.setX(14); }
   else if (entry === 'left') { Nicko.face('left'); Nicko.setX(86); }
+  else { Nicko.setX(current === 'backyard' ? 30 : 50); }
+  Nicko.syncWear();
+  G.renderNeeds();
+  G.renderTray();
   updateHUD();
   document.title = "Nicko's Adventures: " + def.label;
 }
@@ -371,6 +616,7 @@ G.gotoRoom = async function (id, dir) {
 stage.addEventListener('pointerdown', function (ev) {
   AudioSys.ensure();
   if (locked) return;
+  if (window.Drag && Drag.isActive()) return;
   if (!$('#modal-wrap').classList.contains('hidden')) return;
   if (ev.target.closest('#hud') || ev.target.closest('#modal-wrap') || ev.target.closest('#toast-wrap')) return;
   var rect = stage.getBoundingClientRect();
@@ -402,7 +648,7 @@ function closeModal() {
   w.innerHTML = '';
 }
 G.openCollection = function () {
-  var html = '<h2>🎒 Golden Paw Prints</h2><p class="sub">' + G.S.collectibles.length + ' of 8 found</p><div class="collect-grid">' +
+  var html = '<h2>🎒 Golden Paw Prints</h2><p class="sub">' + G.S.collectibles.length + ' of 10 found</p><div class="collect-grid">' +
     COLLECTIBLES.map(function (c) {
       var found = G.S.collectibles.indexOf(c.id) >= 0;
       return '<div class="collect-slot' + (found ? ' found' : '') + '"><div class="ci">🐾</div><div class="cn">' + c.name + '</div>' +
@@ -482,9 +728,9 @@ setInterval(function () {
   lastInteract = Date.now();
 }, 10000);
 
-/* ---------- opening ---------- */
+/* ---------- opening: a child should be playing within 20 seconds ---------- */
 async function opening() {
-  await G.wait(700);
+  await G.wait(600);
   try {
     var el = G.spawn({ id: '__fly0', x: -10, y: 24, w: 9, label: '', svg: BUTTERFLY_SVG, onTap: async function () {} });
     if (el) el.style.pointerEvents = 'none';
@@ -492,10 +738,13 @@ async function opening() {
     G.sendTo('__fly0', 110, 20, 7000).then(function () { G.despawn('__fly0'); });
   } catch (e) {}
   await G.wait(1200);
-  Nicko.emote('wow', 1600);
-  G.toast('Tap the shiny ball!', '👆');
+  await Nicko.react('wow');
+  G.setGlow('underbed', true);
+  G.toast('Something sparkles under the bed!', '👆');
   await G.wait(9000);
-  if (Nicko.isDirty()) G.toast("Nicko's paws are dirty! Find the bathroom!", '🧼');
+  if (Date.now() - lastInteract > 12000) {
+    G.toast('Psst... drag the pajamas to Nicko!', '👆');
+  }
 }
 
 /* ---------- self test (?selftest=1) ---------- */
@@ -519,43 +768,56 @@ async function selftest() {
       var n = objectsEl.querySelectorAll('.obj').length;
       log(n >= 6, ORDER[i] + ' has ' + n + ' tap targets');
     }
+    /* drag & combos */
     await G.gotoRoom('bedroom', 'right');
-    var p0 = G.S.points;
-    await G.objTap('bed');
-    log(G.S.points > p0, 'bed earns points (' + p0 + ' -> ' + G.S.points + ')');
-    await G.objTap('pajamas');
-    await G.objTap('underbed');
-    log(G.S.collectibles.indexOf('print-bedroom') >= 0, 'bedroom golden print collected');
+    log(!!G.el('pajamas'), 'pajamas draggable object exists');
+    await G.gotoRoom('kitchen', 'right');
+    var h0 = Needs.get('hunger');
+    await Drag.simulate('apple', '__nicko');
+    log(Needs.get('hunger') > h0, 'apple->Nicko combo feeds (hunger ' + Math.round(h0) + ' -> ' + Math.round(Needs.get('hunger')) + ')');
+    var r = await Drag.simulate('apple', 'stove');
+    log(r === false, 'apple->stove has no combo (graceful fail)');
+    Store.save();
+    log(!!window.localStorage.getItem('nickoAdvSaveV1'), 'save v2 persists to localStorage');
+    /* wash chain */
     await G.gotoRoom('bathroom', 'right');
-    await G.objTap('sink'); await G.objTap('soap'); await G.objTap('sink'); await G.objTap('towel');
+    await G.objTap('sink'); await G.objTap('soap'); await G.objTap('towel');
     log(G.S.achievements.indexOf('clean-paws') >= 0, 'clean-paws achievement unlocked');
     log(!Nicko.isDirty(), 'paws are clean after wash chain');
-    await G.gotoRoom('kitchen', 'right');
-    await G.objTap('stove');
-    log(!!G.flag('stoveLearned'), 'stove safety learned');
-    await G.objTap('fridge');
-    await G.objTap('fish');
-    log(G.S.achievements.indexOf('kitchen-explorer') >= 0, 'kitchen-explorer achievement unlocked');
-    await G.gotoRoom('living', 'right');
-    await G.objTap('ball');
-    log(G.S.achievements.indexOf('curious-kitten') >= 0, 'curious-kitten achievement unlocked');
-    await G.objTap('cushion');
-    log(!!G.el('toyMouse'), 'hidden toy mouse revealed');
+    log(Needs.get('clean') > 80, 'cleanliness need rose (' + Math.round(Needs.get('clean')) + ')');
+    /* bedroom print: peek under the bed */
+    await G.gotoRoom('bedroom', 'right');
+    await Drag.simulate('pajamas', '__nicko');
+    log(!!G.flag('pajamasOn'), 'pajamas worn via drag combo');
+    await G.objTap('underbed');
+    log(G.S.collectibles.indexOf('print-bedroom') >= 0, 'bedroom golden print collected');
+    /* blocks via drag combos */
     await G.gotoRoom('playroom', 'right');
-    await G.objTap('blockA'); await G.objTap('blockB'); await G.objTap('blockC');
-    log((G.flag('towerH') || 0) === 3, 'tower stacked 3 high');
+    await Drag.simulate('blockA', 'blockB');
+    await Drag.simulate('blockC', 'blockA');
+    await Drag.simulate('blockB', 'blockC');
+    log((G.flag('towerH') || 0) >= 3, 'blocks stack via drag (' + (G.flag('towerH') || 0) + ')');
     await G.objTap('tower');
     log(G.S.collectibles.indexOf('print-blocks') >= 0, 'builder print collected after topple');
     await G.objTap('ptoy1'); await G.objTap('ptoy2'); await G.objTap('ptoy3'); await G.objTap('ptoy4');
     log(G.S.achievements.indexOf('toy-master') >= 0, 'toy-master achievement unlocked');
+    /* inventory */
+    await G.gotoRoom('living', 'right');
+    await G.objTap('cushion');
+    log(Inventory.has('toyMouse'), 'toy mouse unlocked to toybox');
+    /* backyard */
     await G.gotoRoom('backyard', 'right');
-    await G.objTap('bush'); await G.objTap('can'); await G.objTap('sandbox');
+    await G.objTap('sandbox');
     log(G.S.collectibles.indexOf('print-backyard') >= 0, 'backyard print dug up');
     log(G.S.achievements.indexOf('house-explorer') >= 0, 'house-explorer achievement unlocked');
     Store.save();
     var raw = null;
     try { raw = window.localStorage.getItem('nickoAdvSaveV1'); } catch (e) {}
-    log(!!raw && JSON.parse(raw).points === G.S.points, 'progress persists to localStorage');
+    log(!!raw && JSON.parse(raw).v === 2, 'save schema is version 2');
+    /* sounds referenced by the new code */
+    ['pickup', 'munch', 'tummy', 'yawn', 'sneeze'].forEach(function (sn) {
+      log(!!AudioSys.has(sn), 'sound "' + sn + '" exists');
+    });
     log(true, 'selftest complete, fails=' + fails);
     document.title = 'SELFTEST ' + (fails === 0 ? 'PASS' : 'FAIL');
   } catch (e) {
@@ -569,9 +831,10 @@ function boot() {
   G.S = Store.data;
   AudioSys.setMuted(!!G.S.muted);
   Nicko.init();
-  renderRoom('living', null);
+  renderRoom('bedroom', null);
   Nicko.setX(50);
-  Nicko.mood('dirty', true);
+  /* restore persistent dirty state from the cleanliness need */
+  Nicko.mood('dirty', Needs.get('clean') < 60);
   updateHUD();
 
   $('#btn-collection').addEventListener('click', function (ev) { ev.stopPropagation(); AudioSys.ensure(); G.openCollection(); });

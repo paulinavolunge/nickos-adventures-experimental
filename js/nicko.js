@@ -1,4 +1,4 @@
-/* Nicko's Adventures - Nicko the kitten: SVG character, movement, reactions */
+/* Nicko's Adventures - Nicko the kitten: SVG character, movement, reactions, personality */
 window.Nicko = (function () {
   'use strict';
   var wrap = null, body = null;
@@ -8,7 +8,19 @@ window.Nicko = (function () {
   var EMOTES = {
     happy: '😺', love: '😻', surprised: '😲', scared: '🙀', sad: '😿',
     sleepy: '😴', confused: '😕', proud: '😼', wow: '🤩', idea: '💡',
-    yum: '😋', sick: '🤢', music: '🎵', star: '⭐', bath: '🛁'
+    yum: '😋', sick: '🤢', music: '🎵', star: '⭐', bath: '🛁',
+    hunt: '🐭', sneeze: '🤧', angry: '😾', tongue: '😛', sparkle: '✨'
+  };
+
+  /* Nicko's personality: how he reacts to each food. Kids learn to predict him. */
+  var TASTES = {
+    fish:   { react: 'love',      sfx: 'purr',      hunger: 34, happy: 12, note: 'favorite' },
+    milk:   { react: 'yum',       sfx: 'purr',      hunger: 22, happy: 8 },
+    apple:  { react: 'yum',       sfx: 'happyMeow', hunger: 14, happy: 8 },
+    lemon:  { react: 'sick',      sfx: 'meow',      hunger: 0,  happy: -4, funny: true },
+    broccoli:{ react: 'confused', sfx: 'meow',      hunger: 6,  happy: 0, funny: true },
+    cookie: { react: 'yum',       sfx: 'happyMeow', hunger: 10, happy: 12 },
+    soup:   { react: 'yum',       sfx: 'purr',      hunger: 26, happy: 8 }
   };
 
   function svg() {
@@ -52,7 +64,7 @@ window.Nicko = (function () {
       '<g class="eye"><ellipse cx="118" cy="62" rx="11" ry="13" fill="#fff"/><circle class="pupil" cx="116" cy="64" r="5.5" fill="#2E3A45"/><circle cx="118" cy="61" r="1.8" fill="#fff"/></g>' +
       // nose + mouth
       '<path d="M95 82 L105 82 L100 88 Z" fill="#E87A90"/>' +
-      '<path d="M100 88 q0 6 -8 6 M100 88 q0 6 8 6" stroke="#4A4F55" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<path class="mouth" d="M100 88 q0 6 -8 6 M100 88 q0 6 8 6" stroke="#4A4F55" stroke-width="3" fill="none" stroke-linecap="round"/>' +
       // whiskers
       '<path d="M52 80 l-20 -4 M52 88 l-20 2 M148 80 l20 -4 M148 88 l20 2" stroke="#E8E2D8" stroke-width="2.5" stroke-linecap="round"/>' +
       // nightcap (pajama mood)
@@ -60,6 +72,24 @@ window.Nicko = (function () {
         '<path d="M70 34 Q100 -14 142 22 L128 40 Q100 6 82 42 Z" fill="#6BA8E8"/>' +
         '<circle cx="142" cy="22" r="10" fill="#fff"/>' +
         '<path d="M70 34 Q100 -14 142 22" stroke="#4A7FC1" stroke-width="4" fill="none"/>' +
+      '</g>' +
+      // wearable accessories (toggled by Inventory)
+      '<g class="acc acc-hat">' +
+        '<ellipse cx="100" cy="22" rx="34" ry="10" fill="#8A5A3B"/>' +
+        '<path d="M72 20 L80 -22 L120 -22 L128 20 Z" fill="#5A3A22"/>' +
+        '<rect x="72" y="12" width="56" height="10" fill="#FFD65A"/>' +
+        '<circle cx="100" cy="-24" r="8" fill="#FF9D6B"/>' +
+      '</g>' +
+      '<g class="acc acc-glasses">' +
+        '<circle cx="82" cy="62" r="16" fill="none" stroke="#FFD65A" stroke-width="5"/>' +
+        '<circle cx="118" cy="62" r="16" fill="none" stroke="#FFD65A" stroke-width="5"/>' +
+        '<line x1="98" y1="62" x2="102" y2="62" stroke="#FFD65A" stroke-width="5"/>' +
+        '<path d="M74 54 l6 6 M120 54 l6 6" stroke="#fff" stroke-width="3" stroke-linecap="round"/>' +
+      '</g>' +
+      '<g class="acc acc-bowtie">' +
+        '<path d="M100 104 L76 92 L76 116 Z" fill="#FF6B8E"/>' +
+        '<path d="M100 104 L124 92 L124 116 Z" fill="#FF6B8E"/>' +
+        '<circle cx="100" cy="104" r="7" fill="#E84A72"/>' +
       '</g>' +
     '</svg>';
   }
@@ -127,15 +157,40 @@ window.Nicko = (function () {
     emoteTimer = setTimeout(function () { el.classList.add('hidden'); }, ms || 1500);
   }
 
-  // kinds: happy, surprised, scared, sad, sleepy, confused, proud, love, wow
+  /* Thought bubble: a pure visual cue, no reading needed (🍎 hungry, 🛁 dirty, 😴 tired, 🎾 bored) */
+  var thoughtTimer = null;
+  function think(icon, ms) {
+    var el = document.getElementById('thought');
+    if (!el) return;
+    el.textContent = icon;
+    el.classList.remove('hidden');
+    if (thoughtTimer) clearTimeout(thoughtTimer);
+    thoughtTimer = setTimeout(function () { el.classList.add('hidden'); }, ms || 2600);
+  }
+  function clearThought() {
+    var el = document.getElementById('thought');
+    if (el) el.classList.add('hidden');
+    if (thoughtTimer) clearTimeout(thoughtTimer);
+  }
+
+  // kinds: happy, surprised, scared, sad, sleepy, confused, proud, love, wow, yum, sick, hunt, music, bath, sneeze, angry, tongue, sparkle
   function react(kind, ms) {
     ms = ms || 1300;
-    emote(kind === 'happy' ? 'happy' : kind, ms);
+    emote(kind, ms);
     var cls = null, sfx = null;
-    if (kind === 'happy' || kind === 'love' || kind === 'proud' || kind === 'wow') { cls = 'happy-jump'; sfx = kind === 'love' ? 'purr' : 'happyMeow'; }
+    if (kind === 'happy' || kind === 'love' || kind === 'proud' || kind === 'wow' || kind === 'yum' || kind === 'sparkle') {
+      cls = 'happy-jump'; sfx = (kind === 'love' || kind === 'yum') ? 'purr' : 'happyMeow';
+    }
     else if (kind === 'surprised' || kind === 'scared') { cls = 'startled'; sfx = 'meow'; }
     else if (kind === 'sad') { sfx = 'meow'; }
+    else if (kind === 'sick') { sfx = 'meow'; cls = 'shakeoff'; }
+    else if (kind === 'hunt') { cls = 'pounce'; sfx = 'meow'; }
+    else if (kind === 'sneeze') { cls = 'shakeoff'; sfx = 'sneeze'; }
+    else if (kind === 'angry') { sfx = 'meow'; }
+    else if (kind === 'tongue') { sfx = 'giggle'; }
     else if (kind === 'sleepy') { wrap.classList.add('sleeping'); sfx = 'snore'; setTimeout(function(){ wrap.classList.remove('sleeping'); }, ms); }
+    else if (kind === 'music') { cls = 'dance'; sfx = null; }
+    else if (kind === 'bath') { cls = 'shakeoff'; sfx = 'bubbles'; }
     if (cls) {
       wrap.classList.remove(cls); void wrap.offsetWidth; wrap.classList.add(cls);
       setTimeout(function () { wrap.classList.remove(cls); }, 650);
@@ -145,7 +200,7 @@ window.Nicko = (function () {
   }
 
   function action(name, ms) {
-    // pounce, dance, shakeoff, slip, sleeping(add/remove)
+    // pounce, dance, shakeoff, slip, sleeping(add/remove), wiggle, climbIn
     wrap.classList.remove(name); void wrap.offsetWidth; wrap.classList.add(name);
     return new Promise(function (resolve) {
       setTimeout(function () { wrap.classList.remove(name); resolve(); }, ms || 650);
@@ -158,9 +213,28 @@ window.Nicko = (function () {
 
   function isDirty() { return wrap.classList.contains('dirty'); }
 
+  /* Wearable accessories: hat, glasses, bowtie */
+  function wear(item, on) {
+    var g = body.querySelector('.acc-' + item);
+    if (g) g.style.display = (on === false ? 'none' : 'block');
+  }
+  function syncWear(equipped) {
+    ['hat', 'glasses', 'bowtie'].forEach(function (it) { wear(it, !!(equipped && equipped[it])); });
+  }
+
+  /* Personality: taste a food, get Nicko's honest reaction */
+  async function taste(foodId) {
+    var t = TASTES[foodId] || { react: 'confused', sfx: 'meow', hunger: 0, happy: 0, funny: true };
+    await react(t.react, 1500);
+    if (t.funny) window.AudioSys.play('giggle');
+    return t;
+  }
+
   return {
     init: init, walkTo: walkTo, stop: stop, face: face,
     react: react, emote: emote, action: action, mood: mood, isDirty: isDirty,
+    think: think, clearThought: clearThought,
+    wear: wear, syncWear: syncWear, taste: taste, TASTES: TASTES,
     setX: function (nx) { setX(nx, true); },
     pos: function () { return x; },
     isWalking: function () { return walking; },
