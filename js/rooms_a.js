@@ -81,17 +81,7 @@ bedroom: {
         if (el) el.querySelector('.lamp-glow').setAttribute('opacity', on ? '0.0' : '0.85');
         if (!on) {
           /* SECRET: lights out reveals glowing stars */
-          if (!G.el('__stars')) {
-            G.spawn({ id: '__stars', x: 50, y: 26, w: 30, label: 'Stars',
-              svg: '<svg viewBox="0 0 300 90"><g fill="#FFE9A8"><path d="M30 20 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M90 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/><path d="M160 16 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M220 44 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/><path d="M270 22 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/></g></svg>',
-              onTap: async function (G2) {
-                await Nicko.react('wow');
-                G2.sparkleAt(50, 24, 10);
-                if (Secrets.found('stars')) {
-                  G2.collect('print-night');
-                }
-              } });
-          }
+          G.spawnStars();
           if (G.flag('pajamasOn') && !G.flag('bedtimeDone')) {
             await G.wait(600);
             await Nicko.walkTo(74);

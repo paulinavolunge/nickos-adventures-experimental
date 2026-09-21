@@ -244,6 +244,12 @@ window.Combos = (function () {
     try { return await fn(G, dragId, targetId); }
     catch (e) { if (window.console) console.error('combo error ' + dragId + '>' + targetId, e); return false; }
   }
-  function has(dragId, targetId) { return !!table[dragId + '>' + targetId]; }
+  function has(dragId, targetId) {
+    if (table[dragId + '>' + targetId]) return true;
+    /* Tray-spawned copies (inv_x) share the base item's combos, so dragging
+       the toybox blanket onto the bed highlights the bed as a target. */
+    if (dragId.indexOf('inv_') === 0) return !!table[dragId.slice(4) + '>' + targetId];
+    return false;
+  }
   return { register: register, run: run, has: has };
 })();

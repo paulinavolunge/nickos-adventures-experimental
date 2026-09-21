@@ -128,7 +128,7 @@ playroom: {
     { id: 'blockC', x: 48, y: 76, w: 8, label: 'Yellow block', glowSoft: true, drag: true,
       svg: '<svg viewBox="0 0 80 80"><defs><linearGradient id="lg-blky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE066"/><stop offset="1" stop-color="#F2B73C"/></linearGradient></defs><rect x="8" y="8" width="64" height="64" rx="12" fill="url(#lg-blky)"/><rect x="8" y="8" width="64" height="20" rx="10" fill="#fff" opacity="0.25"/><path d="M40 18 L58 56 L22 56 Z" fill="#FFDE8A"/><path d="M40 30 L50 52 L30 52 Z" fill="#FFF3C4"/></svg>',
       onTap: async function (G) { await G.stackBlock('blockC'); } },
-    { id: 'tower', x: 62, y: 78, w: 10, label: 'Block tower',
+    { id: 'tower', x: 58, y: 78, w: 10, label: 'Block tower',
       svg: '<svg viewBox="0 0 100 120"><rect x="10" y="92" width="80" height="22" rx="8" fill="#8A5A3B" opacity="0.3"/><g class="tower-blocks"></g></svg>',
       onTap: async function (G) { await G.toppleTower(); } },
     { id: 'box', x: 70, y: 78, w: 13, label: 'Cardboard box', glowSoft: true,

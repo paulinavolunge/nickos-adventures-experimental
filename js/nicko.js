@@ -7,7 +7,14 @@ window.Nicko = (function () {
   'use strict';
   var wrap = null, body = null;
   var x = 50; // percent across stage
-  var walking = false, walkTimer = null;
+  var walking = false, walkTimer = null, walkResolve = null;
+
+  /* Settle any in-flight walk: an interrupted walk must resolve its promise,
+     otherwise a tap waiting on it hangs the global interaction lock forever. */
+  function settleWalk() {
+    if (walkTimer) { clearTimeout(walkTimer); walkTimer = null; }
+    if (walkResolve) { var r = walkResolve; walkResolve = null; r(); }
+  }
 
   var EMOTES = {
     happy: '😺', love: '😻', surprised: '😲', scared: '🙀', sad: '😿',
@@ -327,15 +334,19 @@ window.Nicko = (function () {
     var dist = Math.abs(nx - x);
     face(nx < x ? 'left' : 'right');
     if (dist < 1.5) return Promise.resolve();
+    /* A new walk cancels the previous one; resolve the old promise first so
+       any tap awaiting it can finish and release the interaction lock. */
+    settleWalk();
     var dur = Math.max(220, Math.min(1500, dist * 16));
     wrap.style.transitionDuration = dur + 'ms';
     wrap.classList.add('walking');
     walking = true;
-    if (walkTimer) clearTimeout(walkTimer);
     setX(nx);
     window.AudioSys.play('click');
     return new Promise(function (resolve) {
+      walkResolve = resolve;
       walkTimer = setTimeout(function () {
+        walkTimer = null; walkResolve = null;
         wrap.classList.remove('walking');
         walking = false;
         resolve();
@@ -344,7 +355,7 @@ window.Nicko = (function () {
   }
 
   function stop() {
-    if (walkTimer) clearTimeout(walkTimer);
+    settleWalk();
     wrap.classList.remove('walking');
     walking = false;
   }
@@ -434,6 +445,12 @@ window.Nicko = (function () {
   }
   function syncWear(equipped) {
     ['hat', 'glasses', 'bowtie'].forEach(function (it) { wear(it, !!(equipped && equipped[it])); });
+    /* Pajamas are a saved flag, not an equipped item; reapply the nightcap
+       so wearing them (and reloading / changing rooms) stays visible. */
+    var paj = !!(equipped && equipped.pajamas);
+    try { if (window.Store && Store.data && Store.data.flags && Store.data.flags.pajamasOn) paj = true; } catch (e) {}
+    var w = document.getElementById('nicko-wrap');
+    if (w) w.classList.toggle('nightcap', paj);
   }
 
   /* Personality: taste a food, get Nicko's honest reaction */

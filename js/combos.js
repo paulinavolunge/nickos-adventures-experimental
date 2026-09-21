@@ -135,6 +135,9 @@ Combos.register('blanket', 'bed', async function (G) {
   if (window.FX) FX.zs(74, 52, 3);
   G.sfx('yawn');
   Needs.rest(20);
+  /* A lasting, visible consequence: the blanket stays draped on the bed. */
+  G.setFlag('blanketOnBed', true);
+  G.showBlanketOnBed(true);
   if (G.once('cozyBed')) G.points(10);
   return 'consume';
 });

@@ -223,8 +223,11 @@ async function onObjTap(def, el) {
     await def.onTap(G);
   } catch (e) {
     if (window.console) console.error('tap error on ' + def.id, e);
+  } finally {
+    /* The lock must always release, even if a walk is interrupted or a
+       handler throws; otherwise every later tap is ignored (dead game). */
+    locked = false;
   }
-  locked = false;
 }
 /* shared tap flow, also used when a drag ends up being a simple tap */
 G.tapDef = onObjTap;
@@ -271,7 +274,7 @@ G.stackBlock = async function (blockId) {
   if (n >= 3) return;
   var el = G.el(blockId);
   if (!el || el.dataset.stacked) return;
-  await G.sendTo(blockId, 62, 72 - n * 10, 500);
+  await G.sendTo(blockId, 58, 72 - n * 10, 500);
   G.sfx('pop');
   n++; G.setFlag('towerH', n);
   el.dataset.stacked = '1';
@@ -382,24 +385,27 @@ G.renderTray = function () {
 G.wearPajamas = async function () {
   await Nicko.walkTo(60);
   G.sfx('pop');
-  Nicko.syncWear({ pajamas: true });
+  G.setFlag('pajamasOn', true);
+  Nicko.syncWear(Store.data.equipped);
   G.sfx('giggle');
   await Nicko.react('love');
   Needs.rest(8);
-  G.setFlag('pajamasOn', true);
+};
+
+/* Visible running water: the sink SVG draws its stream in `.water-stream`
+   (the old code looked for `.sink-water`, which never matched). */
+G.setSinkWater = function (on) {
+  G.setFlag('waterOn', !!on);
+  var el = G.el('sink');
+  if (el) el.classList.toggle('water-on', !!on);
 };
 
 G.sinkTap = async function () {
   var on = !G.flag('waterOn');
-  G.setFlag('waterOn', on);
-  var el = G.el('sink');
-  if (el) {
-    var spout = el.querySelector('.sink-water');
-    if (spout) spout.style.display = on ? '' : 'none';
-    el.classList.toggle('water-on', on);
-  }
+  G.setSinkWater(on);
   G.sfx(on ? 'splash' : 'click');
   if (on) {
+    G.splashAt(20, 68);
     await Nicko.react('wow');
     G.setGlow('soap', true);
     if (G.once('waterHint')) Nicko.think('🧼');
@@ -447,26 +453,38 @@ G.towelTap = async function () {
   }
 };
 
-G.fridgeTap = async function () {
-  var open = !G.flag('fridgeOpen');
-  G.setFlag('fridgeOpen', open);
+/* The foods live inside the fridge; extracted so room re-entry can
+   respawn the exact same visible open-fridge state the child left. */
+function fridgeFoodDefs() {
+  return [
+    { id: 'fish', x: 44, y: 50, w: 9, label: 'Fish', glow: true, drag: true,
+      svg: '<svg viewBox="0 0 90 70"><ellipse cx="40" cy="38" rx="24" ry="16" fill="#6BA8E8"/><path d="M62 38 L82 24 L82 52 Z" fill="#4A7FC1"/><circle cx="30" cy="34" r="4" fill="#1E2A33"/><path d="M40 22 q6 -8 14 -6" stroke="#4A7FC1" stroke-width="4" fill="none" stroke-linecap="round"/></svg>',
+      onTap: async function (g) { await Feed.feedFood(g, 'fish', false); } },
+    { id: 'broccoli', x: 52, y: 58, w: 8, label: 'Broccoli', glowSoft: true, drag: true,
+      svg: '<svg viewBox="0 0 70 80"><rect x="30" y="46" width="10" height="26" rx="4" fill="#7CB85C"/><circle cx="22" cy="34" r="12" fill="#3E8E3E"/><circle cx="40" cy="28" r="13" fill="#4CA64C"/><circle cx="52" cy="38" r="11" fill="#3E8E3E"/></svg>',
+      onTap: async function (g) { await Feed.feedFood(g, 'broccoli', false); } }
+  ];
+}
+
+G.applyFridge = function (open) {
+  G.setFlag('fridgeOpen', !!open);
   var el = G.el('fridge');
-  G.sfx(open ? 'pop' : 'click');
   if (open) {
     if (el) el.classList.add('fridge-open');
+    fridgeFoodDefs().forEach(function (d) { if (!G.el(d.id)) G.spawn(d); });
+  } else {
+    if (el) el.classList.remove('fridge-open');
+    G.despawn('fish');
+    G.despawn('broccoli');
+  }
+};
+
+G.fridgeTap = async function () {
+  var open = !G.flag('fridgeOpen');
+  G.applyFridge(open);
+  G.sfx(open ? 'pop' : 'click');
+  if (open) {
     await Nicko.react('wow');
-    var fishDef = {
-      id: 'fish', x: 44, y: 50, w: 9, label: 'Fish', glow: true, drag: true,
-      svg: '<svg viewBox="0 0 90 70"><ellipse cx="40" cy="38" rx="24" ry="16" fill="#6BA8E8"/><path d="M62 38 L82 24 L82 52 Z" fill="#4A7FC1"/><circle cx="30" cy="34" r="4" fill="#1E2A33"/><path d="M40 22 q6 -8 14 -6" stroke="#4A7FC1" stroke-width="4" fill="none" stroke-linecap="round"/></svg>',
-      onTap: async function (g) { await Feed.feedFood(g, 'fish', false); }
-    };
-    var brocDef = {
-      id: 'broccoli', x: 52, y: 58, w: 8, label: 'Broccoli', glowSoft: true, drag: true,
-      svg: '<svg viewBox="0 0 70 80"><rect x="30" y="46" width="10" height="26" rx="4" fill="#7CB85C"/><circle cx="22" cy="34" r="12" fill="#3E8E3E"/><circle cx="40" cy="28" r="13" fill="#4CA64C"/><circle cx="52" cy="38" r="11" fill="#3E8E3E"/></svg>',
-      onTap: async function (g) { await Feed.feedFood(g, 'broccoli', false); }
-    };
-    if (!G.el('fish')) G.spawn(fishDef);
-    if (!G.el('broccoli')) G.spawn(brocDef);
     var opens = (G.flag('fridgeOpens') || 0) + 1;
     G.setFlag('fridgeOpens', opens);
     if (opens === 3 && Secrets.found('fridgeClimb')) {
@@ -477,10 +495,6 @@ G.fridgeTap = async function () {
       await Nicko.react('surprised', 1200);
       Nicko.think('❄️');
     }
-  } else {
-    if (el) el.classList.remove('fridge-open');
-    G.despawn('fish');
-    G.despawn('broccoli');
   }
 };
 
@@ -494,6 +508,8 @@ G.waterFlowers = async function () {
   await Nicko.react('happy');
   if (!grown) {
     G.setFlag('flowersGrown', true);
+    /* A lasting consequence: watered flowers stay visibly grown. */
+    if (el) el.classList.add('grown');
     if (G.once('flowersWatered')) {
       G.points(10);
       G.yardDiscover('flowers');
@@ -502,9 +518,8 @@ G.waterFlowers = async function () {
   Needs.play(6);
 };
 
-G.toggleTv = async function () {
-  var on = !G.flag('tvOn');
-  G.setFlag('tvOn', on);
+G.applyTv = function (on) {
+  G.setFlag('tvOn', !!on);
   var el = G.el('tv');
   if (el) {
     var screen = el.querySelector('.tv-screen');
@@ -517,6 +532,11 @@ G.toggleTv = async function () {
       el.classList.remove('tv-on');
     }
   }
+};
+
+G.toggleTv = async function () {
+  var on = !G.flag('tvOn');
+  G.applyTv(on);
   G.sfx(on ? 'magic' : 'click');
   if (on) {
     await Nicko.action('dance');
@@ -544,6 +564,63 @@ G.tossPaper = async function () {
   await Nicko.react('happy', 900);
   if (G.once('trashToss')) G.points(5);
 };
+
+/* ---------- persistent visible states ----------
+   Saved flags (blanketOnBed, waterOn, fridgeOpen, tvOn, lampOn, flowersGrown)
+   are restored on every room entry so the room always looks the way the
+   child left it. The child's actions must be trustworthy. */
+G.showBlanketOnBed = function (on) {
+  var el = G.el('bed');
+  if (!el) return;
+  var old = el.querySelector('.bed-blanket');
+  if (old) old.remove();
+  if (!on) return;
+  var svg = el.querySelector('svg');
+  if (!svg) return;
+  var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('class', 'bed-blanket');
+  g.innerHTML = '<rect x="150" y="56" width="112" height="58" rx="16" fill="#C49BE8" stroke="#A87FD0" stroke-width="4"/>' +
+    '<rect x="150" y="98" width="112" height="12" fill="#A87FD0"/>' +
+    '<circle cx="188" cy="78" r="9" fill="#FFD65A"/>' +
+    '<circle cx="224" cy="74" r="9" fill="#FF9DC6"/>';
+  svg.appendChild(g);
+};
+
+/* The lights-out stars (spawned by the lamp, and restored on room entry). */
+G.spawnStars = function () {
+  if (G.el('__stars')) return;
+  G.spawn({ id: '__stars', x: 50, y: 26, w: 30, label: 'Stars',
+    svg: '<svg viewBox="0 0 300 90"><g fill="#FFE9A8"><path d="M30 20 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M90 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/><path d="M160 16 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M220 44 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/><path d="M270 22 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/></g></svg>',
+    onTap: async function (G2) {
+      await Nicko.react('wow');
+      G2.sparkleAt(50, 24, 10);
+      if (Secrets.found('stars')) {
+        G2.collect('print-night');
+      }
+    } });
+};
+
+function restoreRoomState(id) {
+  /* Worn accessories + pajamas must survive room changes. */
+  Nicko.syncWear(Store.data.equipped);
+  if (id === 'bedroom') {
+    if (G.flag('blanketOnBed')) G.showBlanketOnBed(true);
+    if (G.flag('lampOn') === false) {
+      G.dim(true);
+      var lampEl = G.el('lamp');
+      if (lampEl) { var gl = lampEl.querySelector('.lamp-glow'); if (gl) gl.setAttribute('opacity', '0.85'); }
+      G.spawnStars();
+    }
+  } else if (id === 'bathroom') {
+    if (G.flag('waterOn')) G.setSinkWater(true);
+  } else if (id === 'kitchen') {
+    if (G.flag('fridgeOpen')) G.applyFridge(true);
+  } else if (id === 'living') {
+    if (G.flag('tvOn')) G.applyTv(true);
+  } else if (id === 'backyard') {
+    if (G.flag('flowersGrown')) { var fl = G.el('flowers'); if (fl) fl.classList.add('grown'); }
+  }
+}
 
 /* ---------- doors & navigation ---------- */
 function doorSvg(dir, neighbor) {
@@ -577,6 +654,12 @@ function addDoors() {
     onTap: async function () { await G.gotoRoom(next, 'right'); } });
   dl.classList.add('door', 'door-left');
   dr.classList.add('door');
+  /* Deliberate stacking: room objects render above doors, so a room object
+     always wins a tap over a door's invisible padding (lamp vs left door,
+     cat tree vs right door). Doors stay fully tappable everywhere else, and
+     drag carry-through still checks doors first in Drag.findTarget. */
+  objectsEl.insertBefore(dr, objectsEl.firstChild);
+  objectsEl.insertBefore(dl, objectsEl.firstChild);
   objDefs.__doorL = dl._def; objDefs.__doorR = dr._def;
 }
 
@@ -604,7 +687,7 @@ function renderRoom(id, entry) {
   if (entry === 'right') { Nicko.face('right'); Nicko.setX(14); }
   else if (entry === 'left') { Nicko.face('left'); Nicko.setX(86); }
   else { Nicko.setX(current === 'backyard' ? 30 : 50); }
-  Nicko.syncWear();
+  restoreRoomState(id);
   G.renderNeeds();
   G.renderTray();
   updateHUD();
@@ -638,8 +721,13 @@ stage.addEventListener('pointerdown', function (ev) {
 stage.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
 
 document.addEventListener('keydown', function (e) {
-  if (e.key === 'ArrowLeft') { AudioSys.ensure(); Nicko.walkTo(Nicko.pos() - 10); }
-  else if (e.key === 'ArrowRight') { AudioSys.ensure(); Nicko.walkTo(Nicko.pos() + 10); }
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  /* Keyboard moves obey the same rules as taps: never interrupt an object
+     interaction (that used to strand the tap lock) or a modal. */
+  if (locked) return;
+  if (!$('#modal-wrap').classList.contains('hidden')) return;
+  AudioSys.ensure();
+  Nicko.walkTo(Nicko.pos() + (e.key === 'ArrowRight' ? 10 : -10));
 });
 
 /* ---------- modals ---------- */
@@ -739,6 +827,15 @@ setInterval(function () {
   lastInteract = Date.now();
 }, 10000);
 
+/* gentle needs decay: the care loop Needs.tick was designed for. Needs sit
+   at their floors while a modal is open or an interaction runs, and never
+   while the tab is hidden. */
+setInterval(function () {
+  if (document.hidden || locked) return;
+  if (!$('#modal-wrap').classList.contains('hidden')) return;
+  Needs.tick();
+}, 45000);
+
 /* ---------- opening: a child should be playing within 20 seconds ---------- */
 async function opening() {
   await G.wait(600);
@@ -792,16 +889,66 @@ async function selftest() {
     log(r === false, 'apple->stove has no combo (graceful fail)');
     Store.save();
     log(!!window.localStorage.getItem('nickoAdvSaveV1'), 'save v2 persists to localStorage');
-    /* wash chain */
+    /* wash chain + faucet: visible running water that persists across rooms */
     await G.gotoRoom('bathroom', 'right');
-    await G.objTap('sink'); await G.objTap('soap'); await G.objTap('towel');
+    await G.objTap('sink');
+    var stream = G.el('sink').querySelector('.water-stream');
+    log(!!stream && window.getComputedStyle(stream).opacity === '1', 'faucet stream visible when water on');
+    await G.gotoRoom('kitchen', 'right');
+    await G.gotoRoom('bathroom', 'right');
+    log(!!G.flag('waterOn') && G.el('sink').classList.contains('water-on'), 'faucet stays on after room return');
+    await G.objTap('soap'); await G.objTap('towel');
     log(G.S.achievements.indexOf('clean-paws') >= 0, 'clean-paws achievement unlocked');
     log(!Nicko.isDirty(), 'paws are clean after wash chain');
     log(Needs.get('clean') > 80, 'cleanliness need rose (' + Math.round(Needs.get('clean')) + ')');
+    await G.objTap('sink');
+    log(!G.flag('waterOn'), 'faucet turns off');
     /* bedroom print: peek under the bed */
     await G.gotoRoom('bedroom', 'right');
+    /* P1 regression: an interrupted walk settles instead of stranding the lock */
+    var wp1 = Nicko.walkTo(20);
+    var wp2 = Nicko.walkTo(80);
+    var walkSettled = false;
+    await Promise.race([wp1.then(function () { walkSettled = true; }), G.wait(2500)]);
+    log(walkSettled, 'interrupted walk settles its promise (no interaction lock)');
+    await wp2;
+    await G.objTap('bed');
+    log(!G.isLocked(), 'tap lock released after walk interruption');
     await Drag.simulate('pajamas', '__nicko');
     log(!!G.flag('pajamasOn'), 'pajamas worn via drag combo');
+    log(document.getElementById('nicko-wrap').classList.contains('nightcap'), 'nightcap visible after wearing pajamas');
+    /* blanket: tray copies count as bed drop targets, and the blanket stays visible */
+    log(Combos.has('inv_blanket', 'bed'), 'tray blanket recognized as bed drop target');
+    Inventory.unlock('blanket');
+    await Inventory.give('blanket');
+    log(!!G.el('inv_blanket'), 'blanket spawns from toybox');
+    var br = await Drag.simulate('inv_blanket', 'bed');
+    log(br === 'consume' && !!G.flag('blanketOnBed'), 'blanket->bed combo consumes and flags');
+    log(!!(G.el('bed') && G.el('bed').querySelector('.bed-blanket')), 'blanket visible on the bed');
+    await G.gotoRoom('kitchen', 'right');
+    await G.gotoRoom('bedroom', 'right');
+    log(!!(G.el('bed') && G.el('bed').querySelector('.bed-blanket')), 'blanket still on bed after room return');
+    /* worn accessories survive room changes */
+    Store.data.equipped.hat = true; Store.save();
+    Nicko.syncWear(Store.data.equipped);
+    await G.gotoRoom('kitchen', 'right');
+    await G.gotoRoom('bedroom', 'right');
+    var hatEl = document.querySelector('#nicko .acc-hat');
+    log(!!hatEl && hatEl.style.display === 'block', 'worn hat stays visible after room change');
+    delete Store.data.equipped.hat; Store.save();
+    Nicko.syncWear(Store.data.equipped);
+    /* lamp-off state restores on room return */
+    G.setFlag('lampOn', false);
+    await G.gotoRoom('kitchen', 'right');
+    await G.gotoRoom('bedroom', 'right');
+    var lampGlow = G.el('lamp').querySelector('.lamp-glow');
+    log(!!lampGlow && lampGlow.getAttribute('opacity') === '0.85', 'lamp-off glow restored on room return');
+    log(!!G.el('__stars'), 'stars restored when lamp is off');
+    G.setFlag('lampOn', true);
+    G.despawn('__stars');
+    G.dim(false);
+    var lg2 = G.el('lamp').querySelector('.lamp-glow');
+    if (lg2) lg2.setAttribute('opacity', '0.0');
     await G.objTap('underbed');
     log(G.S.collectibles.indexOf('print-bedroom') >= 0, 'bedroom golden print collected');
     /* blocks via drag combos */
@@ -827,6 +974,10 @@ async function selftest() {
     var raw = null;
     try { raw = window.localStorage.getItem('nickoAdvSaveV1'); } catch (e) {}
     log(!!raw && JSON.parse(raw).v === 2, 'save schema is version 2');
+    /* care loop: Needs.tick runs and decays gently */
+    var hungBefore = Needs.get('hunger');
+    Needs.tick();
+    log(Needs.get('hunger') <= hungBefore, 'needs tick decays gently (hunger ' + Math.round(hungBefore) + ' -> ' + Math.round(Needs.get('hunger')) + ')');
     /* sounds referenced by the new code */
     ['pickup', 'munch', 'tummy', 'yawn', 'sneeze'].forEach(function (sn) {
       log(!!AudioSys.has(sn), 'sound "' + sn + '" exists');
