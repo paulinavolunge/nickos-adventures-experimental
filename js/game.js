@@ -31,15 +31,64 @@ G.def = function (id) { return objDefs[id]; };
 G.roomName = function () { return current; };
 
 /* ---------- toast ---------- */
+function dismissToast(el) {
+  if (!el || el.classList.contains('out')) return;
+  el.classList.add('out');
+  setTimeout(function () { el.remove(); }, 350);
+}
 G.toast = function (msg, icon) {
   var wrap = $('#toast-wrap');
   var el = document.createElement('div');
   el.className = 'toast';
   el.textContent = (icon ? icon + ' ' : '') + msg;
+  el.addEventListener('click', function () { dismissToast(el); });
   wrap.appendChild(el);
   while (wrap.children.length > 2) wrap.removeChild(wrap.firstChild);
-  setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, 350); }, 2400);
+  setTimeout(function () { dismissToast(el); }, 2400);
   lastInteract = Date.now();
+};
+
+/* A hint for kids who can't read: the bubble sits at the top (never over
+   Nicko), a bouncing sparkle marks the exact object, and a speaker button
+   reads the hint aloud with the device's own voice. No network, no service. */
+G.hint = function (msg, icon, targetId) {
+  var wrap = $('#toast-wrap');
+  var el = document.createElement('div');
+  el.className = 'toast hint-toast';
+  var inner = '<span class="hint-text">' + (icon ? icon + ' ' : '') + msg + '</span>';
+  if ('speechSynthesis' in window) {
+    inner = '<button class="hint-speak" aria-label="Hear the hint">🔊</button>' + inner;
+  }
+  el.innerHTML = inner;
+  el.addEventListener('click', function (ev) {
+    if (ev.target.closest('.hint-speak')) return;
+    dismissToast(el);
+  });
+  var speakBtn = el.querySelector('.hint-speak');
+  if (speakBtn) speakBtn.addEventListener('click', function (ev) {
+    ev.stopPropagation();
+    try {
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(msg);
+      u.pitch = 1.25; u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  });
+  wrap.appendChild(el);
+  while (wrap.children.length > 2) wrap.removeChild(wrap.firstChild);
+  setTimeout(function () { dismissToast(el); }, 5000);
+  lastInteract = Date.now();
+  /* bouncing sparkle directly over the thing the hint is about */
+  if (targetId) {
+    var t = G.el(targetId);
+    if (t && !t.querySelector('.hint-marker')) {
+      var m = document.createElement('div');
+      m.className = 'hint-marker';
+      m.textContent = '✨';
+      t.appendChild(m);
+      setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 5000);
+    }
+  }
 };
 
 /* ---------- HUD ---------- */
@@ -299,7 +348,7 @@ G.stackBlock = async function (blockId) {
 
 G.toppleTower = async function () {
   var n = G.flag('towerH') || 0;
-  if (n === 0) { G.toast('Tap the blocks to stack them!', '🧱'); return; }
+  if (n === 0) { G.hint('Tap the blocks to stack them!', '🧱', 'tower'); return; }
   var t = G.el('tower');
   if (t) t.classList.remove('glow');
   G.sfx('crash');
@@ -588,7 +637,7 @@ G.tossPaper = async function () {
       svg: '<svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="22" fill="#F4F1E8" stroke="#D8D2C2" stroke-width="4"/><path d="M16 28 q10 -8 20 0 q10 -8 14 2" stroke="#D8D2C2" stroke-width="3" fill="none"/></svg>',
       onTap: async function (g) { await g.tossPaper(); }
     });
-    if (G.once('paperHint')) G.toast('Drag the paper into the trash!', '🗑️');
+    if (G.once('paperHint')) G.hint('Drag the paper into the trash!', '🗑️', 'paperball');
     return;
   }
   G.sfx('whoosh');
@@ -644,6 +693,11 @@ function restoreRoomState(id) {
   if (window.Living) Living.restoreNicko();
   if (id === 'bedroom') {
     if (G.flag('blanketOnBed')) G.showBlanketOnBed(true);
+    /* unlocked hatch: the padlock is gone */
+    if (G.flag('hideoutUnlocked')) {
+      var hatchEl = G.el('hatch');
+      if (hatchEl) hatchEl.classList.add('unlocked');
+    }
     if (G.flag('lampOn') === false) {
       G.dim(true);
       var lampEl = G.el('lamp');
@@ -658,6 +712,8 @@ function restoreRoomState(id) {
     if (G.flag('tvOn')) G.applyTv(true);
   } else if (id === 'backyard') {
     if (G.flag('flowersGrown')) { var fl = G.el('flowers'); if (fl) fl.classList.add('grown'); }
+  } else if (id === 'hideout') {
+    G.refreshHideout();
   }
 }
 
@@ -682,6 +738,16 @@ function doorSvg(dir, neighbor) {
 }
 
 function addDoors() {
+  /* The Hero Hideout is secret: not in the door loop. One door leads home. */
+  if (current === 'hideout') {
+    var back = addObject({ id: '__doorBack', x: 5, y: 62, w: 9, label: 'Back to the bedroom',
+      svg: doorSvg('left', 'bedroom'), goto: 'bedroom',
+      onTap: async function () { await G.gotoRoom('bedroom', 'left'); } });
+    back.classList.add('door', 'door-left');
+    objectsEl.insertBefore(back, objectsEl.firstChild);
+    objDefs.__doorBack = back._def;
+    return;
+  }
   var idx = ORDER.indexOf(current);
   var prev = ORDER[(idx + ORDER.length - 1) % ORDER.length];
   var next = ORDER[(idx + 1) % ORDER.length];
@@ -805,6 +871,161 @@ G.openAchievements = function () {
   openModal(html);
 };
 
+/* ---------- Hero Hideout: picture code, parent gate, badges ----------
+   The book "Nicko's 7-Day Little Hero Adventure" hides a secret code that
+   unlocks this room. Non-readers unlock it with pictures: tap the 7 hero
+   badges in the secret order (lion, heart, star, shield). */
+G.openCodeScreen = function () {
+  var badges = window.HERO_BADGES;
+  var taps = [];
+  var html = '<h2>🔐 Secret Code</h2><p class="sub">Tap the hero badges in the secret order!</p>' +
+    '<div class="code-slots">' +
+    [0, 1, 2, 3].map(function () { return '<div class="code-slot"></div>'; }).join('') +
+    '</div><div class="code-grid">' +
+    badges.map(function (b) {
+      return '<button class="code-btn" data-id="' + b.id + '" aria-label="' + b.name + '"><span>' + b.icon + '</span></button>';
+    }).join('') +
+    '<button class="code-btn code-undo" data-undo="1" aria-label="Undo"><span>↩️</span></button>' +
+    '</div><button class="grownups-link">Grown-ups: get the code</button>' +
+    '<button class="modal-close">Keep playing</button>';
+  openModal(html);
+  var w = $('#modal-wrap');
+  var slots = w.querySelectorAll('.code-slot');
+  function render() {
+    for (var i = 0; i < slots.length; i++) {
+      var b = null;
+      if (taps[i]) {
+        for (var j = 0; j < badges.length; j++) if (badges[j].id === taps[i]) b = badges[j];
+      }
+      slots[i].innerHTML = b ? b.icon : '';
+      slots[i].classList.toggle('filled', !!b);
+    }
+  }
+  w.querySelectorAll('.code-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (btn.dataset.undo) { taps.pop(); render(); G.sfx('click'); return; }
+      if (taps.length >= 4) return;
+      taps.push(btn.dataset.id);
+      render();
+      G.sfx('pop');
+      if (taps.length === 4) {
+        var ok = true;
+        for (var i = 0; i < 4; i++) if (taps[i] !== window.HERO_CODE[i]) ok = false;
+        setTimeout(function () {
+          if (ok) {
+            G.setFlag('hideoutUnlocked', true);
+            closeModal();
+            G.celebrateUnlock();
+          } else {
+            /* gentle: wiggle, soft sound, clear, unlimited tries */
+            var box = w.querySelector('.code-slots');
+            if (box) box.classList.add('wiggle');
+            G.sfx('boing');
+            setTimeout(function () {
+              if (box) box.classList.remove('wiggle');
+              taps = []; render();
+            }, 650);
+          }
+        }, 350);
+      }
+    });
+  });
+  var gl = w.querySelector('.grownups-link');
+  if (gl) gl.addEventListener('click', function () { G.openParentGate(); });
+};
+
+/* Parent gate: "Grown-ups: tap forty-two", number in words, 6 shuffled
+   number buttons. Wrong tap closes quietly. Only the right tap opens the
+   book link, in a new tab. This is the ONLY store link in the game. */
+G.openParentGate = function () {
+  var nums = [24, 42, 12, 40, 44, 32];
+  for (var i = nums.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = nums[i]; nums[i] = nums[j]; nums[j] = t;
+  }
+  var html = '<h2>🔒 Grown-ups</h2><p class="sub">Grown-ups: tap <b>forty-two</b></p>' +
+    '<div class="gate-grid">' +
+    nums.map(function (n) { return '<button class="gate-btn" data-n="' + n + '">' + n + '</button>'; }).join('') +
+    '</div><button class="modal-close">Never mind</button>';
+  openModal(html);
+  var w = $('#modal-wrap');
+  w.querySelectorAll('.gate-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (parseInt(btn.dataset.n, 10) === 42) {
+        closeModal();
+        try { window.open('https://payhip.com/b/9Wu4k', '_blank', 'noopener'); } catch (e) {}
+      } else {
+        closeModal();
+      }
+    });
+  });
+};
+
+/* Unlock celebration: confetti sparkles, happy Nicko jump, cheerful sound,
+   then Nicko enters the Hero Hideout. */
+G.celebrateUnlock = async function () {
+  G.sfx('fanfare');
+  if (window.FX) { FX.sparkles(50, 35, 22); FX.hearts(50, 45, 8); }
+  await Nicko.react('happy');
+  G.toast('The secret hatch is open!', '🎉');
+  await G.wait(900);
+  await G.gotoRoom('hideout', 'right');
+};
+
+/* Light up one of the 7 hero badges on the hideout wall. */
+G.lightBadge = async function (id) {
+  if (!G.S.badges) G.S.badges = [];
+  var el = G.el('badge-' + id);
+  if (G.S.badges.indexOf(id) < 0) {
+    G.S.badges.push(id);
+    Store.save();
+    if (el) el.classList.add('lit');
+    G.sfx('chime');
+    if (window.FX) FX.sparkles(50, 30, 10);
+  } else {
+    G.sfx('pop');
+  }
+  await Nicko.react('happy', 900);
+};
+
+/* The secret 8th badge: a golden "Little Hero" star with a red ribbon. */
+G.revealHeroBadge = async function () {
+  if (!G.S.badges) G.S.badges = [];
+  var el = G.el('badge-mystery');
+  if (G.S.badges.indexOf('littlehero') >= 0) {
+    G.sfx('pop');
+    await Nicko.react('happy', 900);
+    return;
+  }
+  G.S.badges.push('littlehero');
+  Store.save();
+  G.sfx('fanfare');
+  if (window.FX) { FX.sparkles(50, 45, 24); FX.hearts(50, 50, 10); }
+  if (el) {
+    el.classList.add('revealed');
+    el.innerHTML = '<div class="badge-medal lit hero-star"><div class="hero-ribbon"></div><span class="badge-icon">⭐</span><div class="hero-label">Little Hero</div></div>';
+  }
+  await Nicko.react('wow');
+  G.toast('You earned the secret Little Hero badge!', '🌟');
+  G.achieve('secret-seeker');
+};
+
+/* Reapply saved badge states when entering the hideout. */
+G.refreshHideout = function () {
+  var badges = G.S.badges || [];
+  window.HERO_BADGES.forEach(function (b) {
+    var el = G.el('badge-' + b.id);
+    if (el && badges.indexOf(b.id) >= 0) el.classList.add('lit');
+  });
+  if (badges.indexOf('littlehero') >= 0) {
+    var m = G.el('badge-mystery');
+    if (m && !m.classList.contains('revealed')) {
+      m.classList.add('revealed');
+      m.innerHTML = '<div class="badge-medal lit hero-star"><div class="hero-ribbon"></div><span class="badge-icon">⭐</span><div class="hero-label">Little Hero</div></div>';
+    }
+  }
+};
+
 /* ---------- mini events ---------- */
 var BUTTERFLY_SVG = '<svg viewBox="0 0 100 90"><g class="wings"><ellipse cx="32" cy="40" rx="22" ry="28" fill="#FF9DC6" transform="rotate(-24 32 40)"/><ellipse cx="68" cy="40" rx="22" ry="28" fill="#FF9DC6" transform="rotate(24 68 40)"/></g><rect x="46" y="26" width="8" height="40" rx="4" fill="#5A4A6B"/><circle cx="50" cy="24" r="7" fill="#5A4A6B"/></svg>';
 
@@ -890,10 +1111,10 @@ async function opening() {
   G.sparkleAt(Nicko.pos(), 55, 6);
   G.sfx('happyMeow');
   G.setGlow('underbed', true);
-  G.toast('Something sparkles under the bed!', '👆');
+  G.hint('Something sparkles under the bed!', '👆', 'bed');
   await G.wait(9000);
   if (Date.now() - lastInteract > 12000) {
-    G.toast('Psst... drag the pajamas to Nicko!', '👆');
+    G.hint('Psst... drag the pajamas to Nicko!', '👆', 'pajamas');
   }
 }
 

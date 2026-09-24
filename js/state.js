@@ -49,7 +49,7 @@ window.Store = (function () {
       flags: {}, roomsVisited: [], muted: false,
       needs: needsDefaults(),
       inventory: [], equipped: {},
-      secrets: 0
+      secrets: 0, badges: []
     };
   }
   function migrate(d) {

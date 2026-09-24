@@ -196,6 +196,18 @@ window.Nicko = (function () {
       '<path d="M154 106 L176 100"/><path d="M154 114 L175 114"/><path d="M152 121 L170 128"/>' +
     '</g>';
     s += '</g>'; /* end head */
+    /* Nicko's signature red bandana: part of him, so it shows in every
+       state, mood, room and animation. Triangle points down, tiny white
+       paw print on the triangle. No other character wears one. */
+    s += '<g class="nko-bandana">' +
+      '<path d="M64 130 Q100 150 136 130 L136 142 Q100 162 64 142 Z" fill="#D9412E"/>' +
+      '<path d="M80 142 L120 142 L100 182 Z" fill="#D9412E" stroke="#B73220" stroke-width="2" stroke-linejoin="round"/>' +
+      '<g fill="#FFFFFF" opacity="0.95">' +
+        '<ellipse cx="100" cy="162" rx="5.5" ry="4.5"/>' +
+        '<circle cx="90" cy="155" r="2.3"/><circle cx="95.5" cy="151.5" r="2.3"/>' +
+        '<circle cx="104.5" cy="151.5" r="2.3"/><circle cx="110" cy="155" r="2.3"/>' +
+      '</g>' +
+    '</g>';
     /* dirt overlay (dirty mood) */
     s += '<g class="nko-dirt" style="display:none" fill="#7A5230" opacity="0.85">' +
       '<ellipse cx="140" cy="70" rx="12" ry="9"/><ellipse cx="148" cy="80" rx="7" ry="5"/>' +

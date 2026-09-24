@@ -53,7 +53,22 @@ function wallFloor(wall, floor, extra) {
     (extra || '') + '</svg>';
 }
 
+/* The 7 Little Hero badges from "Nicko's 7-Day Little Hero Adventure". */
+window.HERO_BADGES = [
+  { id: 'courage',     name: 'Courage',         icon: '🦁' },
+  { id: 'kindness',    name: 'Kindness',        icon: '❤️' },
+  { id: 'honesty',     name: 'Honesty',         icon: '⭐' },
+  { id: 'safety',      name: 'Safety',          icon: '🛡️' },
+  { id: 'helping',     name: 'Helping',         icon: '🐾' },
+  { id: 'problem',     name: 'Problem-Solving', icon: '🧩' },
+  { id: 'nevergiveup', name: 'Never Give Up',   icon: '🏆' }
+];
+/* Picture code: lion, heart, star, shield */
+window.HERO_CODE = ['courage', 'kindness', 'honesty', 'safety'];
+
 Object.assign(window.ROOMS, {
+
+/* ================= HERO HIDEOUT (secret room, book-to-game bridge) ================= */
 
 /* ================= BEDROOM ================= */
 bedroom: {
@@ -114,6 +129,15 @@ bedroom: {
           G.sfx('click');
         }
       } },
+    { id: 'hatch', x: 50, y: 20, w: 12, label: 'Secret hatch', glow: true,
+      svg: '<svg viewBox="0 0 100 80"><ellipse cx="50" cy="74" rx="40" ry="6" fill="rgba(90,55,25,0.2)"/><rect x="14" y="10" width="72" height="58" rx="10" fill="#8A5A3B" stroke="#5A3A22" stroke-width="3"/><rect x="22" y="18" width="56" height="42" rx="6" fill="#A9764F"/><line x1="50" y1="18" x2="50" y2="60" stroke="#5A3A22" stroke-width="3"/><circle class="hatch-lock" cx="50" cy="44" r="13" fill="#FFD166" stroke="#B57E1B" stroke-width="3"/><rect class="hatch-lock" x="43" y="36" width="14" height="12" rx="3" fill="none" stroke="#B57E1B" stroke-width="3"/><circle class="hatch-lock" cx="50" cy="46" r="3" fill="#5A3A22"/></svg>',
+      onTap: async function (G) {
+        if (G.flag('hideoutUnlocked')) {
+          await G.gotoRoom('hideout', 'right');
+        } else {
+          G.openCodeScreen();
+        }
+      } },
     { id: 'painting', x: 32, y: 26, w: 14, label: 'Painting',
       svg: '<svg viewBox="0 0 140 110"><defs><linearGradient id="lg-paint" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFDF4"/><stop offset="1" stop-color="#F7ECD4"/></linearGradient></defs><rect x="4" y="4" width="132" height="102" rx="10" fill="#7C4F22"/><rect x="8" y="8" width="124" height="94" rx="8" fill="#A9764F"/><rect x="16" y="16" width="108" height="78" fill="url(#lg-paint)"/><circle cx="60" cy="50" r="20" fill="#FF9D6B"/><circle cx="54" cy="44" r="6" fill="#FFB98A" opacity="0.8"/><path d="M38 82 q32 -24 64 0" stroke="#57C4AD" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M44 88 q26 -18 52 0" stroke="#8FD16F" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.7"/></svg>',
       onTap: async function (G) {
@@ -136,8 +160,8 @@ bedroom: {
         await Nicko.react('surprised');
         if (G.once('clockFun')) { G.points(5); }
       } },
-    { id: 'pajamas', x: 56, y: 52, w: 9, label: 'Nightcap', glowSoft: true, drag: true,
-      svg: '<svg viewBox="0 0 100 100"><defs><linearGradient id="lg-pj" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FBEF0"/><stop offset="1" stop-color="#5A8FD0"/></linearGradient></defs><ellipse cx="50" cy="90" rx="30" ry="6" fill="rgba(90,55,25,0.2)"/><path d="M28 68 Q48 8 84 42 L70 58 Q52 32 38 70 Z" fill="url(#lg-pj)"/><path d="M38 60 Q52 32 66 44" stroke="#fff" stroke-width="4" fill="none" opacity="0.4" stroke-linecap="round"/><circle cx="84" cy="42" r="12" fill="#FFFDF7"/><circle cx="84" cy="42" r="12" fill="none" stroke="#E3D5BC" stroke-width="3"/><rect x="22" y="64" width="54" height="15" rx="7.5" fill="#4A7FC1"/><circle cx="40" cy="40" r="4" fill="#FFE066"/><circle cx="56" cy="28" r="4" fill="#FFE066"/></svg>',
+    { id: 'pajamas', x: 56, y: 50, w: 9, label: 'Nightcap', glowSoft: true, drag: true,
+      svg: '<svg viewBox="0 0 100 112"><defs><linearGradient id="lg-pj" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FBEF0"/><stop offset="1" stop-color="#5A8FD0"/></linearGradient></defs><rect x="44" y="0" width="12" height="10" rx="4" fill="#8A5A3B"/><circle cx="50" cy="12" r="6" fill="#6E452D"/><ellipse cx="50" cy="102" rx="30" ry="6" fill="rgba(90,55,25,0.2)"/><path d="M28 80 Q48 20 84 54 L70 70 Q52 44 38 82 Z" fill="url(#lg-pj)"/><path d="M38 72 Q52 44 66 56" stroke="#fff" stroke-width="4" fill="none" opacity="0.4" stroke-linecap="round"/><circle cx="84" cy="54" r="12" fill="#FFFDF7"/><circle cx="84" cy="54" r="12" fill="none" stroke="#E3D5BC" stroke-width="3"/><rect x="22" y="76" width="54" height="15" rx="7.5" fill="#4A7FC1"/><circle cx="40" cy="52" r="4" fill="#FFE066"/><circle cx="56" cy="40" r="4" fill="#FFE066"/></svg>',
       onTap: async function (G) { await G.wearPajamas(); } },
     { id: 'chair', x: 45, y: 68, w: 13, label: 'Chair',
       svg: '<svg viewBox="0 0 130 150"><defs><linearGradient id="lg-chair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C08A52"/><stop offset="1" stop-color="#96622F"/></linearGradient></defs><ellipse cx="65" cy="144" rx="48" ry="7" fill="rgba(90,55,25,0.22)"/><rect x="36" y="74" width="11" height="66" rx="5.5" fill="#6E452D"/><rect x="83" y="74" width="11" height="66" rx="5.5" fill="#6E452D"/><rect x="30" y="60" width="70" height="16" rx="8" fill="url(#lg-chair)"/><rect x="30" y="14" width="70" height="54" rx="12" fill="url(#lg-chair)"/><rect x="36" y="20" width="58" height="42" rx="8" fill="#D09A5E" opacity="0.6"/><rect class="chair-blanket" x="22" y="42" width="86" height="32" rx="14" fill="#C49BE8"/><rect class="chair-blanket" x="22" y="42" width="86" height="12" rx="6" fill="#D4B5F0"/><circle class="chair-blanket" cx="40" cy="58" r="5" fill="#fff" opacity="0.5"/><circle class="chair-blanket" cx="70" cy="58" r="5" fill="#fff" opacity="0.5"/></svg>',
@@ -433,6 +457,60 @@ kitchen: {
         if (G.once('trashToss')) G.points(5);
       } }
   ]
+},
+
+/* ================= HERO HIDEOUT =================
+   Secret attic clubhouse. NOT in the door loop (ORDER); reached only
+   through the bedroom hatch. 7 badge spots on the wall + 1 glowing
+   mystery spot in the center. */
+hideout: {
+  id: 'hideout', label: 'Hero Hideout', icon: '⭐',
+  bg: (function () {
+    var beams = '';
+    for (var i = 0; i < 5; i++) {
+      beams += '<rect x="' + (80 + i * 220) + '" y="0" width="34" height="300" rx="10" fill="#8A5A3B" opacity="0.85"/>';
+    }
+    return '<svg viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><radialGradient id="hideGlow" cx="0.5" cy="0.35" r="0.9">' +
+      '<stop offset="0" stop-color="#FFE9A8"/><stop offset="0.55" stop-color="#F7C873"/><stop offset="1" stop-color="#C98F5A"/>' +
+      '</radialGradient></defs>' +
+      '<rect x="0" y="0" width="1000" height="620" fill="url(#hideGlow)"/>' +
+      beams +
+      '<ellipse cx="500" cy="120" rx="150" ry="90" fill="#FFF3D0" opacity="0.35"/>' +
+      '<rect x="0" y="470" width="1000" height="150" fill="#A9764F"/>' +
+      '<rect x="0" y="470" width="1000" height="14" fill="#8A5A3B"/>' +
+      '<g opacity="0.9" class="amb-twinkle" fill="#FFF3D0">' +
+      '<path d="M200 200 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/>' +
+      '<path d="M800 180 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/>' +
+      '<path d="M650 320 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/></g>' +
+      '</svg>';
+  })(),
+  objects: (function () {
+    var objs = [];
+    var xs = [12, 25, 38, 51, 64, 77, 90];
+    window.HERO_BADGES.forEach(function (b, i) {
+      objs.push({
+        id: 'badge-' + b.id, x: xs[i], y: 30, w: 10, label: b.name + ' badge',
+        svg: '<div class="badge-medal"><span class="badge-icon">' + b.icon + '</span></div>',
+        onTap: (function (bid) {
+          return async function (G) { await G.lightBadge(bid); };
+        })(b.id)
+      });
+    });
+    /* glowing mystery spot in the center: the secret 8th badge */
+    objs.push({
+      id: 'badge-mystery', x: 50, y: 52, w: 15, label: 'Mystery spot', glow: true,
+      svg: '<div class="badge-medal mystery"><span class="badge-icon">?</span><div class="mystery-rays"></div></div>',
+      onTap: async function (G) { await G.revealHeroBadge(); }
+    });
+    /* cozy rug */
+    objs.push({
+      id: 'hiderug', x: 50, y: 88, w: 34, label: 'Cozy rug',
+      svg: '<svg viewBox="0 0 200 60"><ellipse cx="100" cy="30" rx="95" ry="26" fill="#D9412E" opacity="0.85"/><ellipse cx="100" cy="30" rx="70" ry="18" fill="#F7C873" opacity="0.9"/><ellipse cx="100" cy="30" rx="45" ry="11" fill="#D9412E" opacity="0.7"/></svg>',
+      onTap: async function (G) { G.sfx('thud'); await Nicko.react('happy', 800); }
+    });
+    return objs;
+  })()
 }
 
 });
