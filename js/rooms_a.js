@@ -73,7 +73,9 @@ bedroom: {
     { id: 'lamp', x: 13, y: 56, w: 10, label: 'Lamp', glowSoft: true,
       svg: '<svg viewBox="0 0 100 130"><defs><linearGradient id="lg-lamp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE066"/><stop offset="1" stop-color="#FFB62E"/></linearGradient></defs><ellipse cx="50" cy="126" rx="28" ry="7" fill="rgba(90,55,25,0.25)"/><rect x="42" y="94" width="16" height="30" rx="7" fill="#8A5A3B"/><rect x="42" y="94" width="7" height="30" rx="3.5" fill="#A9764F"/><ellipse cx="50" cy="128" rx="26" ry="6" fill="#6E452D"/><path d="M20 94 L80 94 L68 40 L32 40 Z" fill="url(#lg-lamp)"/><path d="M32 40 L44 40 L36 94 L20 94 Z" fill="#fff" opacity="0.25"/><path class="lamp-glow" d="M20 94 L80 94 L68 40 L32 40 Z" fill="#FFF3D0" opacity="0.0"/><rect x="44" y="30" width="12" height="12" rx="6" fill="#8A5A3B"/></svg>',
       onTap: async function (G) {
-        var on = !G.flag('lampOn');
+        /* The room starts bright: an unset flag means the lamp is on. */
+        var wasOn = G.flag('lampOn'); if (wasOn === undefined) wasOn = true;
+        var on = !wasOn;
         G.setFlag('lampOn', on);
         G.dim(!on);
         G.sfx('click');
@@ -88,6 +90,12 @@ bedroom: {
             Nicko.mood('sleeping', true);
             await Nicko.react('sleepy', 2600);
             G.sfx('snore');
+            /* the coziest combination: blanket waiting on the bed too */
+            if (G.flag('blanketOnBed')) {
+              G.floatText(74, 54, '💤');
+              if (window.FX) FX.zs(74, 52, 3);
+              await Nicko.react('sleepy', 1400);
+            }
             await G.wait(2400);
             Nicko.mood('sleeping', false);
             G.dim(false); G.setFlag('lampOn', true);
@@ -99,7 +107,7 @@ bedroom: {
             Needs.rest(60);
             G.achieve('bedtime-star');
             G.points(30);
-            G.toast('Bedtime routine complete!', '🌙');
+            G.toast(G.flag('blanketOnBed') ? 'So cozy...' : 'Goodnight, Nicko!', '🌙');
           }
         } else {
           G.despawn('__stars');
@@ -160,6 +168,15 @@ bedroom: {
       svg: '<svg viewBox="0 0 300 190"><defs><linearGradient id="lg-bed" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9CC8E8"/><stop offset="1" stop-color="#6FA3CC"/></linearGradient><linearGradient id="lg-quilt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD9A0"/><stop offset="1" stop-color="#F2A95C"/></linearGradient></defs><ellipse cx="150" cy="182" rx="140" ry="10" fill="rgba(90,55,25,0.22)"/><rect x="16" y="58" width="32" height="114" rx="12" fill="#8A5A3B"/><rect x="252" y="58" width="32" height="114" rx="12" fill="#8A5A3B"/><circle cx="32" cy="52" r="16" fill="#A9764F"/><circle cx="268" cy="52" r="16" fill="#A9764F"/><rect x="12" y="92" width="276" height="48" rx="18" fill="url(#lg-bed)"/><rect x="12" y="62" width="276" height="54" rx="18" fill="url(#lg-quilt)"/><path d="M30 76 q60 -14 120 0 t120 0" stroke="#fff" stroke-width="6" fill="none" opacity="0.5" stroke-linecap="round"/><path d="M30 96 q60 -14 120 0 t120 0" stroke="#E87F4E" stroke-width="5" fill="none" opacity="0.5" stroke-linecap="round"/><rect x="26" y="28" width="96" height="56" rx="20" fill="#FFFDF7" stroke="#EBDCC2" stroke-width="4"/><rect x="34" y="36" width="80" height="40" rx="14" fill="#F7ECD4"/><path d="M150 84 q44 -24 96 -8" stroke="#E87F4E" stroke-width="11" fill="none" stroke-linecap="round"/></svg>',
       onTap: async function (G) {
         await Nicko.walkTo(74);
+        if (G.flag('pajamasOn') && G.flag('blanketOnBed')) {
+          /* the coziest spot in the house: curl up under the blanket */
+          await Nicko.action('curl');
+          G.floatText(78, 54, '💤');
+          G.sfx('yawn');
+          await Nicko.react('sleepy', 1800);
+          Needs.rest(20);
+          return;
+        }
         var el = G.el('bed');
         if (el) { el.classList.remove('bounce'); void el.offsetWidth; el.classList.add('bounce'); }
         G.sfx('boing');
@@ -236,6 +253,8 @@ bathroom: {
         await G.wait(700);
         await Nicko.react('happy');
         G.sfx('splash'); G.splashAt(60, 62);
+        /* a splashy tub gets him wet; the towel dries him after */
+        if (window.Living) Living.setWet(true);
         G.sfx('bubbles');
         await Nicko.action('shakeoff');
         await Nicko.react('happy');

@@ -203,6 +203,12 @@ window.Nicko = (function () {
       '<ellipse cx="82" cy="206" rx="10" ry="6"/><ellipse cx="118" cy="206" rx="10" ry="6"/>' +
       '<circle cx="52" cy="120" r="4"/><circle cx="150" cy="160" r="5"/><circle cx="96" cy="60" r="3.5"/>' +
     '</g>';
+    /* wet droplets: shown while Nicko is wet (splash, wash) until toweled dry */
+    s += '<g class="nko-wet" style="display:none" fill="#7ECBF2" opacity="0.9">' +
+      '<path d="M120 60 q10 14 0 22 q-10 -8 0 -22" /><path d="M70 140 q9 12 0 19 q-9 -7 0 -19" />' +
+      '<path d="M140 170 q9 12 0 19 q-9 -7 0 -19" /><circle cx="95" cy="110" r="5"/>' +
+      '<circle cx="60" cy="90" r="4"/><circle cx="130" cy="120" r="4"/>' +
+    '</g>';
     /* nightcap (pajama mood) */
     s += '<g class="nightcap-g" style="display:none">' +
       '<path d="M64 52 Q96 -6 150 34 L134 54 Q98 12 76 58 Z" fill="#6BA8E8"/>' +
@@ -434,9 +440,14 @@ window.Nicko = (function () {
       var d = body && body.querySelector('.nko-dirt');
       if (d) d.style.display = (on === false ? 'none' : 'block');
     }
+    if (name === 'wet') {
+      var w = body && body.querySelector('.nko-wet');
+      if (w) w.style.display = (on === false ? 'none' : 'block');
+    }
   }
 
   function isDirty() { return wrap.classList.contains('dirty'); }
+  function isWet() { return wrap.classList.contains('wet'); }
 
   /* Wearable accessories: hat, glasses, bowtie */
   function wear(item, on) {
@@ -463,7 +474,7 @@ window.Nicko = (function () {
 
   return {
     init: init, walkTo: walkTo, stop: stop, face: face,
-    react: react, emote: emote, action: action, mood: mood, isDirty: isDirty,
+    react: react, emote: emote, action: action, mood: mood, isDirty: isDirty, isWet: isWet,
     think: think, clearThought: clearThought, setFace: setFace,
     wear: wear, syncWear: syncWear, taste: taste, TASTES: TASTES,
     setX: function (nx) { setX(nx, true); },

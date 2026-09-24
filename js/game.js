@@ -11,6 +11,8 @@ var current = 'living';
 var locked = false;
 var objDefs = {};
 var lastInteract = Date.now();
+/* auto-dismiss timer for the Golden Paw Print celebration modal */
+var goldTimer = null;
 
 var G = window.G = {};
 G.S = Store.data;
@@ -101,6 +103,14 @@ G.collect = function (id) {
       '<p class="sub">A Golden Paw Print!</p><h2>' + name + '</h2>' +
       '<p class="sub">' + G.S.collectibles.length + ' of 10 found</p></div>' +
       '<button class="modal-close">Keep playing!</button>', true);
+    /* The celebration must never trap play: if the child keeps playing
+       instead of closing it, it quietly goes away on its own. */
+    if (goldTimer) clearTimeout(goldTimer);
+    goldTimer = setTimeout(function () {
+      goldTimer = null;
+      var w = $('#modal-wrap');
+      if (!w.classList.contains('hidden') && w.querySelector('.gold-card')) closeModal();
+    }, 7000);
   }, 2100);
 };
 
@@ -403,9 +413,12 @@ G.setSinkWater = function (on) {
 G.sinkTap = async function () {
   var on = !G.flag('waterOn');
   G.setSinkWater(on);
+  if (window.Living) Living.sinkToggled();
   G.sfx(on ? 'splash' : 'click');
   if (on) {
     G.splashAt(20, 68);
+    /* splashing at the sink gets him a little damp */
+    if (window.Living) Living.setWet(true);
     await Nicko.react('wow');
     G.setGlow('soap', true);
     if (G.once('waterHint')) Nicko.think('🧼');
@@ -422,6 +435,8 @@ G.soapTap = async function () {
     return;
   }
   G.setFlag('soaped', true);
+  /* scrubbing under running water: now he is wet AND soapy */
+  if (window.Living) Living.soapScrubbed();
   G.sfx('scrub');
   for (var i = 0; i < 6; i++) G.sparkleAt(Nicko.pos() + (Math.random() * 10 - 5), 55 + Math.random() * 10, 2);
   if (window.FX) FX.bubbles(Nicko.pos(), 58, 10);
@@ -434,9 +449,27 @@ G.soapTap = async function () {
 
 G.towelTap = async function () {
   if (!G.flag('soaped')) {
-    await Nicko.react('confused');
-    Nicko.think('🧼');
-    G.setGlow('soap', true);
+    if (!G.flag('waterOn')) {
+      /* towel before water: the water needs to be on first */
+      await Nicko.react('confused');
+      Nicko.think('🚰');
+      G.setGlow('sink', true);
+      return;
+    }
+    if ((window.Living && Living.isWet()) || Nicko.isDirty()) {
+      /* damp or grubby but not soapy: a quick pat dry, no full wash */
+      G.sfx('pop');
+      await Nicko.action('wiggle');
+      if (window.Living) Living.setWet(false);
+      Needs.change('clean', 10);
+      await Nicko.react('happy', 900);
+      return;
+    }
+    /* already clean and dry: the towel is just cozy */
+    G.sfx('pop');
+    await Nicko.action('wiggle');
+    G.sfx('purr');
+    await Nicko.react('veryHappy', 1100);
     return;
   }
   G.sfx('pop');
@@ -446,7 +479,8 @@ G.towelTap = async function () {
   await Nicko.react('veryHappy', 1300);
   Needs.change('clean', 55);
   Nicko.mood('dirty', false);
-  G.setFlag('soaped', false);
+  if (window.Living) Living.towelDried();
+  else G.setFlag('soaped', false);
   if (G.once('fullBath')) {
     G.achieve('clean-paws');
     G.collect('print-bathroom');
@@ -592,6 +626,8 @@ G.spawnStars = function () {
   G.spawn({ id: '__stars', x: 50, y: 26, w: 30, label: 'Stars',
     svg: '<svg viewBox="0 0 300 90"><g fill="#FFE9A8"><path d="M30 20 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M90 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/><path d="M160 16 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M220 44 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/><path d="M270 22 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/></g></svg>',
     onTap: async function (G2) {
+      /* the coziest night: pajamas + blanket + lights out = a dream */
+      if (window.Living) await Living.starsDream();
       await Nicko.react('wow');
       G2.sparkleAt(50, 24, 10);
       if (Secrets.found('stars')) {
@@ -603,6 +639,9 @@ G.spawnStars = function () {
 function restoreRoomState(id) {
   /* Worn accessories + pajamas must survive room changes. */
   Nicko.syncWear(Store.data.equipped);
+  /* The living-world layer reapplies believable body states (dirty, wet)
+     so a mid-bath room change or a reload keeps Nicko looking right. */
+  if (window.Living) Living.restoreNicko();
   if (id === 'bedroom') {
     if (G.flag('blanketOnBed')) G.showBlanketOnBed(true);
     if (G.flag('lampOn') === false) {
@@ -745,6 +784,7 @@ function closeModal() {
   var w = $('#modal-wrap');
   w.classList.add('hidden');
   w.innerHTML = '';
+  if (goldTimer) { clearTimeout(goldTimer); goldTimer = null; }
 }
 G.openCollection = function () {
   var html = '<h2>🎒 Golden Paw Prints</h2><p class="sub">' + G.S.collectibles.length + ' of 10 found</p><div class="collect-grid">' +
@@ -903,6 +943,66 @@ async function selftest() {
     log(Needs.get('clean') > 80, 'cleanliness need rose (' + Math.round(Needs.get('clean')) + ')');
     await G.objTap('sink');
     log(!G.flag('waterOn'), 'faucet turns off');
+    /* ---- living-world chain tests ---- */
+    /* Chain B happy path: dirty -> wet -> soapy -> clean and dry */
+    Needs.change('clean', -60); Nicko.mood('dirty', true); Nicko.mood('wet', false);
+    await G.objTap('sink');
+    log(!!G.flag('waterOn') && !!G.flag('wetPaws') && Nicko.isWet(), 'bath: water on makes Nicko wet');
+    await G.objTap('soap');
+    log(!!G.flag('soaped'), 'bath: soap under water sets soapy');
+    await G.objTap('towel');
+    log(!Nicko.isDirty() && !Nicko.isWet() && !G.flag('soaped'), 'bath: towel finishes clean and dry');
+    await G.objTap('sink');
+    /* Chain B wrong order: towel before water */
+    G.setFlag('waterOn', false);
+    await G.objTap('towel');
+    log(!G.flag('soaped') && !Nicko.isWet(), 'bath wrong order: towel before water does not wash');
+    /* Chain B wrong order: soap while dry (water off) */
+    await G.objTap('soap');
+    log(!G.flag('soaped'), 'bath wrong order: soap while dry does not soap');
+    /* cozy towel on a clean dry cat: harmless, stays clean */
+    var cleanBefore = Needs.get('clean');
+    await G.objTap('towel');
+    log(Needs.get('clean') >= cleanBefore, 'bath: cozy towel on clean cat is harmless');
+    /* mid-bath room change keeps the state trustworthy */
+    await G.objTap('sink'); await G.objTap('soap');
+    await G.gotoRoom('kitchen', 'right');
+    await G.gotoRoom('bathroom', 'right');
+    log(!!G.flag('waterOn') && !!G.flag('soaped') && Nicko.isWet(), 'bath: wet+soapy survive a room change');
+    await G.objTap('towel');
+    await G.objTap('sink');
+    log(!Nicko.isWet() && !G.flag('waterOn'), 'bath: dried and faucet off after return');
+    /* reload-style restore: flags set, visuals reapplied */
+    G.setFlag('wetPaws', true);
+    window.Living.restoreNicko();
+    log(Nicko.isWet(), 'bath: wet visual restored from save');
+    G.setFlag('wetPaws', false);
+    window.Living.restoreNicko();
+    log(!Nicko.isWet(), 'bath: dry visual restored from save');
+    /* Chain A: repeated food keeps feeding, personality varies, no punishment */
+    await G.gotoRoom('kitchen', 'right');
+    var hu0 = Needs.get('hunger');
+    await Feed.feedFood(G, 'apple', false);
+    await Feed.feedFood(G, 'apple', false);
+    await Feed.feedFood(G, 'apple', false);
+    log(Needs.get('hunger') >= hu0, 'food: repeated feeding still fills (no punishment)');
+    /* Chain D: repeated watering is safe; rain grows thirsty flowers */
+    await G.gotoRoom('backyard', 'right');
+    await G.waterFlowers();
+    await G.waterFlowers();
+    log(!!G.flag('flowersGrown'), 'nature: repeated watering keeps flowers grown');
+    G.setFlag('flowersGrown', false);
+    var fl = G.el('flowers'); if (fl) fl.classList.remove('grown');
+    await G.objTap('cloud');
+    log(!!G.flag('flowersGrown'), 'nature: cloud rain grows thirsty flowers');
+    /* Chain C: cozy bed combo (pajamas + blanket) settles cleanly */
+    await G.gotoRoom('bedroom', 'right');
+    G.setFlag('pajamasOn', true); G.setFlag('blanketOnBed', true);
+    Nicko.syncWear(Store.data.equipped);
+    await G.objTap('bed');
+    log(!G.isLocked(), 'bedtime: cozy bed combo settles cleanly');
+    G.setFlag('pajamasOn', false); G.setFlag('blanketOnBed', false);
+    Nicko.syncWear(Store.data.equipped);
     /* bedroom print: peek under the bed */
     await G.gotoRoom('bedroom', 'right');
     /* P1 regression: an interrupted walk settles instead of stranding the lock */
@@ -998,8 +1098,8 @@ function boot() {
   if (window.FX) FX.init();
   renderRoom('bedroom', null);
   Nicko.setX(50);
-  /* restore persistent dirty state from the cleanliness need */
-  Nicko.mood('dirty', Needs.get('clean') < 60);
+  /* persistent dirty/wet visuals are restored by renderRoom via
+     Living.restoreNicko, so the boot state always matches the save */
   updateHUD();
 
   $('#btn-collection').addEventListener('click', function (ev) { ev.stopPropagation(); AudioSys.ensure(); G.openCollection(); });

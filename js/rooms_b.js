@@ -321,6 +321,8 @@ backyard: {
         await Nicko.action('shakeoff');
         await Nicko.react('happy');
         Nicko.mood('dirty', true);
+        /* muddy puddle water: grubby AND damp */
+        if (window.Living) Living.setWet(true);
         Needs.change('clean', -20);
         Needs.play(8);
         if (G.once('ypuddleFun')) { G.points(5); G.yardDiscover('puddle'); }
@@ -373,6 +375,8 @@ backyard: {
         await Nicko.react('surprised');
         var el = G.el('flowers');
         if (el) { el.classList.remove('bloom'); void el.offsetWidth; el.classList.add('bloom'); }
+        /* rain is water too: a shower on thirsty flowers grows them */
+        if (window.Living) Living.rainGrows();
         if (G.once('rainFun')) { G.points(5); G.yardDiscover('rain'); }
       } }
   ]

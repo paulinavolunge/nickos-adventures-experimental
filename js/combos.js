@@ -182,6 +182,7 @@ Combos.register('can', 'flowers', async function (G) {
 Combos.register('can', '__nicko', async function (G) {
   /* mischief: splashing Nicko is funny but he gets damp */
   G.sfx('splash'); G.splashAt(Nicko.pos(), 66);
+  if (window.Living) Living.setWet(true);
   await Nicko.react('surprised', 1200);
   await Nicko.action('shakeoff');
   G.sfx('giggle');
