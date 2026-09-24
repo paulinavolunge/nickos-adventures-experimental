@@ -500,12 +500,13 @@ body {
 /* ================= Hero Hideout: badges ================= */
 .badge-medal { width:100%; aspect-ratio:1; border-radius:50%;
   background:radial-gradient(circle at 35% 30%, #E8DCC4, #B8A888);
-  border:4px solid #8A7A66; display:flex; align-items:center; justify-content:center;
-  filter:grayscale(1); opacity:.45; transition:all .35s ease; position:relative; }
+  border:4px solid #C9A227; display:flex; align-items:center; justify-content:center;
+  filter:grayscale(1); opacity:.45; transition:all .35s ease; position:relative;
+  box-shadow:0 0 0 3px rgba(201,162,39,.35), 0 4px 10px rgba(60,40,20,.25); }
 .badge-medal .badge-icon { font-size:44px; }
 .obj.lit .badge-medal, .badge-medal.lit { filter:none; opacity:1; border-color:#FFD166;
   background:radial-gradient(circle at 35% 30%, #FFF3D0, #F7C873);
-  box-shadow:0 0 18px rgba(255,209,102,.8); }
+  box-shadow:0 0 0 3px rgba(255,209,102,.9), 0 0 22px rgba(255,209,102,.85); }
 .badge-medal.mystery { filter:none; opacity:1; border-color:#FFD166;
   background:radial-gradient(circle at 35% 30%, #FFF8E6, #E8C98F);
   animation:mysteryPulse 1.6s ease-in-out infinite; }
@@ -513,6 +514,15 @@ body {
 @keyframes mysteryPulse { 0%,100% { box-shadow:0 0 10px rgba(255,209,102,.5); }
   50% { box-shadow:0 0 26px rgba(255,209,102,.95); } }
 .obj.revealed .badge-medal { animation:none; }
+/* ---- Hero Hideout: magical polish ---- */
+.fl { opacity:.18; transition:opacity .45s ease; }
+.fl.on { opacity:1; animation:flTwinkle 2.6s ease-in-out infinite; }
+@keyframes flTwinkle { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+.mote { animation:moteDrift 7s ease-in-out infinite; }
+@keyframes moteDrift { 0%,100% { transform:translateY(0); opacity:.35; }
+  50% { transform:translateY(-26px); opacity:1; } }
+.hideout-aura { animation:auraPulse 5s ease-in-out infinite; }
+@keyframes auraPulse { 0%,100% { opacity:.28; } 50% { opacity:.45; } }
 .hero-star { flex-direction:column; }
 .hero-ribbon { width:44px; height:26px; margin-bottom:2px;
   background:linear-gradient(180deg, #E84A5C, #C23344);

@@ -714,6 +714,7 @@ function restoreRoomState(id) {
     if (G.flag('flowersGrown')) { var fl = G.el('flowers'); if (fl) fl.classList.add('grown'); }
   } else if (id === 'hideout') {
     G.refreshHideout();
+    G.hideoutWow();
   }
 }
 
@@ -1024,6 +1025,24 @@ G.refreshHideout = function () {
       m.innerHTML = '<div class="badge-medal lit hero-star"><div class="hero-ribbon"></div><span class="badge-icon">⭐</span><div class="hero-label">Little Hero</div></div>';
     }
   }
+};
+
+/* First-entry wow moment: the fairy lights flicker on one by one,
+   then Nicko gasps happily. Only plays once ever. */
+G.hideoutWow = async function () {
+  var lights = Array.prototype.slice.call(roomBg.querySelectorAll('.fl'));
+  if (G.flag('hideoutWowSeen')) {
+    lights.forEach(function (l) { l.classList.add('on'); });
+    return;
+  }
+  G.setFlag('hideoutWowSeen', true);
+  for (var i = 0; i < lights.length; i++) {
+    (function (l, idx) {
+      setTimeout(function () { l.classList.add('on'); G.sfx('pop'); }, 500 + idx * 140);
+    })(lights[i], i);
+  }
+  await G.wait(500 + lights.length * 140 + 350);
+  await Nicko.react('wow');
 };
 
 /* ---------- mini events ---------- */

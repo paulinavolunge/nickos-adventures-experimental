@@ -470,6 +470,35 @@ hideout: {
     for (var i = 0; i < 5; i++) {
       beams += '<rect x="' + (80 + i * 220) + '" y="0" width="34" height="300" rx="10" fill="#8A5A3B" opacity="0.85"/>';
     }
+    /* twinkling fairy lights along the ceiling (lit one-by-one on first entry) */
+    var fairyLights = '<path d="M0 22 Q 500 92 1000 26" stroke="#8A5A3B" stroke-width="4" fill="none"/>';
+    var bulbColors = ['#FFE9A8', '#FFD1DC', '#FFF3D0', '#FFE066', '#FFC4D6'];
+    for (var li = 0; li < 14; li++) {
+      var lx = 40 + li * 70;
+      var ly = 58 + Math.sin(li * 0.9) * 16;
+      var lc = bulbColors[li % bulbColors.length];
+      fairyLights += '<g class="fl" data-i="' + li + '">' +
+        '<line x1="' + lx + '" y1="24" x2="' + lx + '" y2="' + ly + '" stroke="#8A5A3B" stroke-width="3"/>' +
+        '<circle cx="' + lx + '" cy="' + (ly + 10) + '" r="14" fill="' + lc + '" opacity="0.35" class="fl-glow"/>' +
+        '<circle cx="' + lx + '" cy="' + (ly + 10) + '" r="8" fill="' + lc + '" class="fl-bulb"/>' +
+        '</g>';
+    }
+    /* little pennant banner */
+    var pennantStr = '<path d="M30 128 Q 500 168 970 122" stroke="#8A5A3B" stroke-width="3" fill="none"/>';
+    var pColors = ['#D9412E', '#FFD166', '#57C4AD', '#8FB8E8', '#C49BE8'];
+    for (var pi = 0; pi < 10; pi++) {
+      var px = 60 + pi * 95;
+      var py = 132 + Math.sin(pi * 0.7) * 10;
+      var pc = pColors[pi % pColors.length];
+      pennantStr += '<path d="M' + px + ' ' + py + ' l30 0 l-15 26 Z" fill="' + pc + '" stroke="rgba(90,55,25,0.3)" stroke-width="2"/>';
+    }
+    /* gentle sparkles drifting in the air */
+    var motes = '';
+    for (var mi = 0; mi < 8; mi++) {
+      var mx = 80 + mi * 110;
+      var my = 200 + (mi % 3) * 90;
+      motes += '<text x="' + mx + '" y="' + my + '" font-size="22" class="mote" style="animation-delay:' + (mi * 0.7) + 's">\u2728</text>';
+    }
     return '<svg viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' +
       '<defs><radialGradient id="hideGlow" cx="0.5" cy="0.35" r="0.9">' +
       '<stop offset="0" stop-color="#FFE9A8"/><stop offset="0.55" stop-color="#F7C873"/><stop offset="1" stop-color="#C98F5A"/>' +
@@ -477,6 +506,8 @@ hideout: {
       '<rect x="0" y="0" width="1000" height="620" fill="url(#hideGlow)"/>' +
       beams +
       '<ellipse cx="500" cy="120" rx="150" ry="90" fill="#FFF3D0" opacity="0.35"/>' +
+      fairyLights + pennantStr + motes +
+      '<ellipse cx="500" cy="300" rx="420" ry="260" fill="#FFE9A8" class="hideout-aura" opacity="0.3"/>' +
       '<rect x="0" y="470" width="1000" height="150" fill="#A9764F"/>' +
       '<rect x="0" y="470" width="1000" height="14" fill="#8A5A3B"/>' +
       '<g opacity="0.9" class="amb-twinkle" fill="#FFF3D0">' +
@@ -507,6 +538,17 @@ hideout: {
     objs.push({
       id: 'hiderug', x: 50, y: 88, w: 34, label: 'Cozy rug',
       svg: '<svg viewBox="0 0 200 60"><ellipse cx="100" cy="30" rx="95" ry="26" fill="#D9412E" opacity="0.85"/><ellipse cx="100" cy="30" rx="70" ry="18" fill="#F7C873" opacity="0.9"/><ellipse cx="100" cy="30" rx="45" ry="11" fill="#D9412E" opacity="0.7"/></svg>',
+      onTap: async function (G) { G.sfx('thud'); await Nicko.react('happy', 800); }
+    });
+    /* cozy cushions */
+    objs.push({
+      id: 'hidecush1', x: 22, y: 78, w: 13, label: 'Cozy cushion',
+      svg: '<svg viewBox="0 0 100 80"><rect x="8" y="18" width="84" height="54" rx="22" fill="#57C4AD"/><rect x="8" y="18" width="84" height="54" rx="22" fill="none" stroke="#2E8B78" stroke-width="4"/><path d="M25 40 q10 8 20 0 q10 -8 20 0" stroke="#2E8B78" stroke-width="4" fill="none" stroke-linecap="round"/></svg>',
+      onTap: async function (G) { G.sfx('thud'); await Nicko.react('happy', 800); }
+    });
+    objs.push({
+      id: 'hidecush2', x: 78, y: 78, w: 13, label: 'Cozy cushion',
+      svg: '<svg viewBox="0 0 100 80"><rect x="8" y="18" width="84" height="54" rx="22" fill="#8FB8E8"/><rect x="8" y="18" width="84" height="54" rx="22" fill="none" stroke="#5B84C4" stroke-width="4"/><path d="M25 40 q10 8 20 0 q10 -8 20 0" stroke="#5B84C4" stroke-width="4" fill="none" stroke-linecap="round"/></svg>',
       onTap: async function (G) { G.sfx('thud'); await Nicko.react('happy', 800); }
     });
     return objs;
