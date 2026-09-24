@@ -468,6 +468,7 @@ hideout: {
   bg: (function () {
     var beams = '';
     for (var i = 0; i < 5; i++) {
+      if (i === 2) continue; /* skip the middle beam: it crossed the badge row and mystery spot */
       beams += '<rect x="' + (80 + i * 220) + '" y="0" width="34" height="300" rx="10" fill="#8A5A3B" opacity="0.85"/>';
     }
     /* twinkling fairy lights along the ceiling (lit one-by-one on first entry) */

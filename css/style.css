@@ -467,6 +467,8 @@ body {
 @media (max-width:600px) {
   #hud { flex-wrap:wrap; row-gap:6px; }
   #needs-bar { order:3; flex-basis:100%; justify-content:center; gap:4px; }
+  /* hint bubbles sit below the wrapped needs bar, never over it */
+  #toast-wrap { top:calc(138px + env(safe-area-inset-top)); }
   .need { min-width:36px; padding:4px 6px; }
   .need-fill { width:28px; }
   .tray-handle { width:52px; height:52px; font-size:26px; }

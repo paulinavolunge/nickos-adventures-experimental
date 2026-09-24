@@ -30,54 +30,76 @@ G.dim = function (on) { $('#dim').classList.toggle('on', !!on); };
 G.def = function (id) { return objDefs[id]; };
 G.roomName = function () { return current; };
 
-/* ---------- toast ---------- */
+/* ---------- toast: one bubble at a time, queued, never over the needs bar ---------- */
+var toastQueue = [];
+var toastShowing = false;
+var currentToastMsg = null;
 function dismissToast(el) {
   if (!el || el.classList.contains('out')) return;
   el.classList.add('out');
-  setTimeout(function () { el.remove(); }, 350);
+  setTimeout(function () {
+    if (el.parentNode) el.parentNode.removeChild(el);
+    toastShowing = false;
+    currentToastMsg = null;
+    setTimeout(showNextToast, 350); /* small breathing gap before the next bubble */
+  }, 350);
 }
-G.toast = function (msg, icon) {
+function showNextToast() {
+  if (toastShowing) return;
+  var item = toastQueue.shift();
+  if (!item) return;
+  toastShowing = true;
+  currentToastMsg = item.msg;
   var wrap = $('#toast-wrap');
   var el = document.createElement('div');
-  el.className = 'toast';
-  el.textContent = (icon ? icon + ' ' : '') + msg;
-  el.addEventListener('click', function () { dismissToast(el); });
+  el.className = 'toast' + (item.isHint ? ' hint-toast' : '');
+  if (item.isHint) {
+    var inner = '<span class="hint-text">' + (item.icon ? item.icon + ' ' : '') + item.msg + '</span>';
+    if ('speechSynthesis' in window) {
+      inner = '<button class="hint-speak" aria-label="Hear the hint">🔊</button>' + inner;
+    }
+    el.innerHTML = inner;
+    el.addEventListener('click', function (ev) {
+      if (ev.target.closest('.hint-speak')) return;
+      dismissToast(el);
+    });
+    var speakBtn = el.querySelector('.hint-speak');
+    if (speakBtn) speakBtn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      try {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(item.msg);
+        u.pitch = 1.25; u.rate = 0.95;
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    });
+  } else {
+    el.textContent = (item.icon ? item.icon + ' ' : '') + item.msg;
+    el.addEventListener('click', function () { dismissToast(el); });
+  }
   wrap.appendChild(el);
-  while (wrap.children.length > 2) wrap.removeChild(wrap.firstChild);
-  setTimeout(function () { dismissToast(el); }, 2400);
+  setTimeout(function () { dismissToast(el); }, item.isHint ? 5000 : 2400);
   lastInteract = Date.now();
-};
+}
+function queueToast(msg, icon, isHint) {
+  if (currentToastMsg === msg) return; /* already on screen */
+  if (isHint) {
+    for (var i = 0; i < toastQueue.length; i++) {
+      if (toastQueue[i].msg === msg) return; /* never queue the same hint twice */
+    }
+  }
+  while (toastQueue.length > 2) toastQueue.shift(); /* don't let bubbles pile up */
+  toastQueue.push({ msg: msg, icon: icon, isHint: !!isHint });
+  showNextToast();
+  lastInteract = Date.now();
+}
+G.toast = function (msg, icon) { queueToast(msg, icon, false); };
 
 /* A hint for kids who can't read: the bubble sits at the top (never over
    Nicko), a bouncing sparkle marks the exact object, and a speaker button
    reads the hint aloud with the device's own voice. No network, no service. */
 G.hint = function (msg, icon, targetId) {
-  var wrap = $('#toast-wrap');
-  var el = document.createElement('div');
-  el.className = 'toast hint-toast';
-  var inner = '<span class="hint-text">' + (icon ? icon + ' ' : '') + msg + '</span>';
-  if ('speechSynthesis' in window) {
-    inner = '<button class="hint-speak" aria-label="Hear the hint">🔊</button>' + inner;
-  }
-  el.innerHTML = inner;
-  el.addEventListener('click', function (ev) {
-    if (ev.target.closest('.hint-speak')) return;
-    dismissToast(el);
-  });
-  var speakBtn = el.querySelector('.hint-speak');
-  if (speakBtn) speakBtn.addEventListener('click', function (ev) {
-    ev.stopPropagation();
-    try {
-      window.speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(msg);
-      u.pitch = 1.25; u.rate = 0.95;
-      window.speechSynthesis.speak(u);
-    } catch (e) {}
-  });
-  wrap.appendChild(el);
-  while (wrap.children.length > 2) wrap.removeChild(wrap.firstChild);
-  setTimeout(function () { dismissToast(el); }, 5000);
-  lastInteract = Date.now();
+  queueToast(msg, icon, true);
   /* bouncing sparkle directly over the thing the hint is about */
   if (targetId) {
     var t = G.el(targetId);
